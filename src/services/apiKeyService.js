@@ -147,6 +147,9 @@ class ApiKeyService {
         keyData: {
           id: keyData.id,
           name: keyData.name,
+          description: keyData.description,
+          createdAt: keyData.createdAt,
+          expiresAt: keyData.expiresAt,
           claudeAccountId: keyData.claudeAccountId,
           geminiAccountId: keyData.geminiAccountId,
           permissions: keyData.permissions || 'all',

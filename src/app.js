@@ -16,6 +16,7 @@ const pricingService = require('./services/pricingService');
 const apiRoutes = require('./routes/api');
 const adminRoutes = require('./routes/admin');
 const webRoutes = require('./routes/web');
+const apiStatsRoutes = require('./routes/apiStats');
 const geminiRoutes = require('./routes/geminiRoutes');
 const openaiGeminiRoutes = require('./routes/openaiGeminiRoutes');
 const openaiClaudeRoutes = require('./routes/openaiClaudeRoutes');
@@ -120,13 +121,14 @@ class Application {
       this.app.use('/claude', apiRoutes); // /claude 路由别名，与 /api 功能相同
       this.app.use('/admin', adminRoutes);
       this.app.use('/web', webRoutes);
+      this.app.use('/apiStats', apiStatsRoutes);
       this.app.use('/gemini', geminiRoutes);
       this.app.use('/openai/gemini', openaiGeminiRoutes);
       this.app.use('/openai/claude', openaiClaudeRoutes);
       
-      // 🏠 根路径重定向到管理界面
+      // 🏠 根路径重定向到API统计页面
       this.app.get('/', (req, res) => {
-        res.redirect('/web');
+        res.redirect('/apiStats');
       });
       
       // 🏥 增强的健康检查端点
