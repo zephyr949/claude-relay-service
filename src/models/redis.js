@@ -3,23 +3,30 @@ const config = require('../../config/config');
 const logger = require('../utils/logger');
 
 // 时区辅助函数
+// 注意：这个函数的目的是获取某个时间点在目标时区的"本地"表示
+// 例如：UTC时间 2025-07-30 01:00:00 在 UTC+8 时区表示为 2025-07-30 09:00:00
 function getDateInTimezone(date = new Date()) {
   const offset = config.system.timezoneOffset || 8; // 默认UTC+8
-  const utcTime = date.getTime() + (date.getTimezoneOffset() * 60000);
-  const targetTime = new Date(utcTime + (offset * 3600000));
-  return targetTime;
+  
+  // 方法：创建一个偏移后的Date对象，使其getUTCXXX方法返回目标时区的值
+  // 这样我们可以用getUTCFullYear()等方法获取目标时区的年月日时分秒
+  const offsetMs = offset * 3600000; // 时区偏移的毫秒数
+  const adjustedTime = new Date(date.getTime() + offsetMs);
+  
+  return adjustedTime;
 }
 
 // 获取配置时区的日期字符串 (YYYY-MM-DD)
 function getDateStringInTimezone(date = new Date()) {
   const tzDate = getDateInTimezone(date);
-  return `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}-${String(tzDate.getDate()).padStart(2, '0')}`;
+  // 使用UTC方法获取偏移后的日期部分
+  return `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}-${String(tzDate.getUTCDate()).padStart(2, '0')}`;
 }
 
 // 获取配置时区的小时 (0-23)
 function getHourInTimezone(date = new Date()) {
   const tzDate = getDateInTimezone(date);
-  return tzDate.getHours();
+  return tzDate.getUTCHours();
 }
 
 class RedisClient {
@@ -162,7 +169,7 @@ class RedisClient {
     const now = new Date();
     const today = getDateStringInTimezone(now);
     const tzDate = getDateInTimezone(now);
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
     const currentHour = `${today}:${String(getHourInTimezone(now)).padStart(2, '0')}`; // 新增小时级别
     
     const daily = `usage:daily:${keyId}:${today}`;
@@ -287,7 +294,7 @@ class RedisClient {
     const now = new Date();
     const today = getDateStringInTimezone(now);
     const tzDate = getDateInTimezone(now);
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
     const currentHour = `${today}:${String(getHourInTimezone(now)).padStart(2, '0')}`;
     
     // 账户级别统计的键
@@ -385,7 +392,7 @@ class RedisClient {
     const today = getDateStringInTimezone();
     const dailyKey = `usage:daily:${keyId}:${today}`;
     const tzDate = getDateInTimezone();
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
     const monthlyKey = `usage:monthly:${keyId}:${currentMonth}`;
 
     const [total, daily, monthly] = await Promise.all([
@@ -481,8 +488,8 @@ class RedisClient {
   async incrementDailyCost(keyId, amount) {
     const today = getDateStringInTimezone();
     const tzDate = getDateInTimezone();
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
-    const currentHour = `${today}:${String(getHourInTimezone()).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
+    const currentHour = `${today}:${String(getHourInTimezone(new Date())).padStart(2, '0')}`;
     
     const dailyKey = `usage:cost:daily:${keyId}:${today}`;
     const monthlyKey = `usage:cost:monthly:${keyId}:${currentMonth}`;
@@ -509,8 +516,8 @@ class RedisClient {
   async getCostStats(keyId) {
     const today = getDateStringInTimezone();
     const tzDate = getDateInTimezone();
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
-    const currentHour = `${today}:${String(getHourInTimezone()).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
+    const currentHour = `${today}:${String(getHourInTimezone(new Date())).padStart(2, '0')}`;
     
     const [daily, monthly, hourly, total] = await Promise.all([
       this.client.get(`usage:cost:daily:${keyId}:${today}`),
@@ -533,7 +540,7 @@ class RedisClient {
     const today = getDateStringInTimezone();
     const accountDailyKey = `account_usage:daily:${accountId}:${today}`;
     const tzDate = getDateInTimezone();
-    const currentMonth = `${tzDate.getFullYear()}-${String(tzDate.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = `${tzDate.getUTCFullYear()}-${String(tzDate.getUTCMonth() + 1).padStart(2, '0')}`;
     const accountMonthlyKey = `account_usage:monthly:${accountId}:${currentMonth}`;
 
     const [total, daily, monthly] = await Promise.all([

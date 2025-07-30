@@ -441,8 +441,35 @@ function createUsageTrendChart() {
   const requestsData = data.map(d => d.requests || 0)
   const costData = data.map(d => d.cost || 0)
   
+  // 根据数据类型确定标签字段和格式
+  const labelField = data[0]?.date ? 'date' : 'hour'
+  const labels = data.map(d => {
+    // 优先使用后端提供的label字段
+    if (d.label) {
+      return d.label
+    }
+    
+    if (labelField === 'hour') {
+      // 格式化小时显示
+      const date = new Date(d.hour)
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hour = String(date.getHours()).padStart(2, '0')
+      return `${month}/${day} ${hour}:00`
+    }
+    // 按天显示时，只显示月/日，不显示年份
+    const dateStr = d.date
+    if (dateStr && dateStr.includes('-')) {
+      const parts = dateStr.split('-')
+      if (parts.length >= 3) {
+        return `${parts[1]}/${parts[2]}`
+      }
+    }
+    return d.date
+  })
+  
   const chartData = {
-    labels: data.map(d => d.date),
+    labels: labels,
     datasets: [
       {
         label: '输入Token',
@@ -628,8 +655,34 @@ function createApiKeysUsageTrendChart() {
     }
   }) || []
   
+  // 根据数据类型确定标签字段
+  const labelField = data[0]?.date ? 'date' : 'hour'
+  
   const chartData = {
-    labels: data.map(d => d.date),
+    labels: data.map(d => {
+      // 优先使用后端提供的label字段
+      if (d.label) {
+        return d.label
+      }
+      
+      if (labelField === 'hour') {
+        // 格式化小时显示
+        const date = new Date(d.hour)
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        const hour = String(date.getHours()).padStart(2, '0')
+        return `${month}/${day} ${hour}:00`
+      }
+      // 按天显示时，只显示月/日，不显示年份
+      const dateStr = d.date
+      if (dateStr && dateStr.includes('-')) {
+        const parts = dateStr.split('-')
+        if (parts.length >= 3) {
+          return `${parts[1]}/${parts[2]}`
+        }
+      }
+      return d.date
+    }),
     datasets: datasets
   }
   

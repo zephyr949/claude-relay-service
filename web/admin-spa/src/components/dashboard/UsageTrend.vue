@@ -55,8 +55,12 @@ const createChart = () => {
   
   const labels = dashboardStore.trendData.map(item => {
     if (granularity.value === 'hour') {
-      const date = new Date(item.date)
-      return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:00`
+      // 小时粒度使用hour字段
+      const date = new Date(item.hour)
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hour = String(date.getHours()).padStart(2, '0')
+      return `${month}/${day} ${hour}:00`
     }
     return item.date
   })
