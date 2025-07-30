@@ -9,6 +9,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!.env.production
 
 # Claude specific directories
 .claude/
@@ -94,8 +95,6 @@ jspm_packages/
 
 # Nuxt.js build / generate output
 .nuxt
-dist
-
 # Gatsby files
 .cache/
 public
@@ -230,3 +229,10 @@ out/
 
 # Runtime files
 *.sock
+
+# Old admin interface (deprecated)
+web/admin/
+web/apiStats/
+
+# Admin SPA build files
+web/admin-spa/dist/

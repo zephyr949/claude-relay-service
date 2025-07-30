@@ -37,7 +37,9 @@ class ClaudeAccountService {
       claudeAiOauth = null, // Claude标准格式的OAuth数据
       proxy = null, // { type: 'socks5', host: 'localhost', port: 1080, username: '', password: '' }
       isActive = true,
-      accountType = 'shared' // 'dedicated' or 'shared'
+      accountType = 'shared', // 'dedicated' or 'shared'
+      priority = 50, // 调度优先级 (1-100，数字越小优先级越高)
+      schedulable = true // 是否可被调度
     } = options;
 
     const accountId = uuidv4();
@@ -60,11 +62,13 @@ class ClaudeAccountService {
         proxy: proxy ? JSON.stringify(proxy) : '',
         isActive: isActive.toString(),
         accountType: accountType, // 账号类型：'dedicated' 或 'shared'
+        priority: priority.toString(), // 调度优先级
         createdAt: new Date().toISOString(),
         lastUsedAt: '',
         lastRefreshAt: '',
         status: 'active', // 有OAuth数据的账户直接设为active
-        errorMessage: ''
+        errorMessage: '',
+        schedulable: schedulable.toString() // 是否可被调度
       };
     } else {
       // 兼容旧格式
@@ -81,11 +85,13 @@ class ClaudeAccountService {
         proxy: proxy ? JSON.stringify(proxy) : '',
         isActive: isActive.toString(),
         accountType: accountType, // 账号类型：'dedicated' 或 'shared'
+        priority: priority.toString(), // 调度优先级
         createdAt: new Date().toISOString(),
         lastUsedAt: '',
         lastRefreshAt: '',
         status: 'created', // created, active, expired, error
-        errorMessage: ''
+        errorMessage: '',
+        schedulable: schedulable.toString() // 是否可被调度
       };
     }
 
@@ -101,6 +107,7 @@ class ClaudeAccountService {
       isActive,
       proxy,
       accountType,
+      priority,
       status: accountData.status,
       createdAt: accountData.createdAt,
       expiresAt: accountData.expiresAt,
@@ -270,8 +277,9 @@ class ClaudeAccountService {
         throw new Error('No access token available');
       }
 
-      // 更新最后使用时间
+      // 更新最后使用时间和会话窗口
       accountData.lastUsedAt = new Date().toISOString();
+      await this.updateSessionWindow(accountId, accountData);
       await redis.setClaudeAccount(accountId, accountData);
 
       return accessToken;
@@ -286,10 +294,13 @@ class ClaudeAccountService {
     try {
       const accounts = await redis.getAllClaudeAccounts();
       
-      // 处理返回数据，移除敏感信息并添加限流状态
+      // 处理返回数据，移除敏感信息并添加限流状态和会话窗口信息
       const processedAccounts = await Promise.all(accounts.map(async account => {
         // 获取限流状态信息
         const rateLimitInfo = await this.getAccountRateLimitInfo(account.id);
+        
+        // 获取会话窗口信息
+        const sessionWindowInfo = await this.getSessionWindowInfo(account.id);
         
         return {
           id: account.id,
@@ -301,6 +312,7 @@ class ClaudeAccountService {
           status: account.status,
           errorMessage: account.errorMessage,
           accountType: account.accountType || 'shared', // 兼容旧数据，默认为共享
+          priority: parseInt(account.priority) || 50, // 兼容旧数据，默认优先级50
           createdAt: account.createdAt,
           lastUsedAt: account.lastUsedAt,
           lastRefreshAt: account.lastRefreshAt,
@@ -310,7 +322,18 @@ class ClaudeAccountService {
             isRateLimited: rateLimitInfo.isRateLimited,
             rateLimitedAt: rateLimitInfo.rateLimitedAt,
             minutesRemaining: rateLimitInfo.minutesRemaining
-          } : null
+          } : null,
+          // 添加会话窗口信息
+          sessionWindow: sessionWindowInfo || {
+            hasActiveWindow: false,
+            windowStart: null,
+            windowEnd: null,
+            progress: 0,
+            remainingTime: null,
+            lastRequestTime: null
+          },
+          // 添加调度状态
+          schedulable: account.schedulable !== 'false' // 默认为true，兼容历史数据
         };
       }));
       
@@ -330,7 +353,7 @@ class ClaudeAccountService {
         throw new Error('Account not found');
       }
 
-      const allowedUpdates = ['name', 'description', 'email', 'password', 'refreshToken', 'proxy', 'isActive', 'claudeAiOauth', 'accountType'];
+      const allowedUpdates = ['name', 'description', 'email', 'password', 'refreshToken', 'proxy', 'isActive', 'claudeAiOauth', 'accountType', 'priority', 'schedulable'];
       const updatedData = { ...accountData };
 
       // 检查是否新增了 refresh token
@@ -342,6 +365,8 @@ class ClaudeAccountService {
             updatedData[field] = this._encryptSensitiveData(value);
           } else if (field === 'proxy') {
             updatedData[field] = value ? JSON.stringify(value) : '';
+          } else if (field === 'priority') {
+            updatedData[field] = value.toString();
           } else if (field === 'claudeAiOauth') {
             // 更新 Claude AI OAuth 数据
             if (value) {
@@ -815,6 +840,210 @@ class ClaudeAccountService {
     } catch (error) {
       logger.error(`❌ Failed to get rate limit info for account: ${accountId}`, error);
       return null;
+    }
+  }
+
+  // 🕐 更新会话窗口
+  async updateSessionWindow(accountId, accountData = null) {
+    try {
+      // 如果没有传入accountData，从Redis获取
+      if (!accountData) {
+        accountData = await redis.getClaudeAccount(accountId);
+        if (!accountData || Object.keys(accountData).length === 0) {
+          throw new Error('Account not found');
+        }
+      }
+
+      const now = new Date();
+      const currentTime = now.getTime();
+      
+      // 检查当前是否有活跃的会话窗口
+      if (accountData.sessionWindowStart && accountData.sessionWindowEnd) {
+        const windowEnd = new Date(accountData.sessionWindowEnd).getTime();
+        
+        // 如果当前时间在窗口内，不需要更新
+        if (currentTime < windowEnd) {
+          accountData.lastRequestTime = now.toISOString();
+          return accountData;
+        }
+      }
+
+      // 计算新的会话窗口
+      const windowStart = this._calculateSessionWindowStart(now);
+      const windowEnd = this._calculateSessionWindowEnd(windowStart);
+
+      // 更新会话窗口信息
+      accountData.sessionWindowStart = windowStart.toISOString();
+      accountData.sessionWindowEnd = windowEnd.toISOString();
+      accountData.lastRequestTime = now.toISOString();
+
+      logger.info(`🕐 Updated session window for account ${accountData.name} (${accountId}): ${windowStart.toISOString()} - ${windowEnd.toISOString()}`);
+
+      return accountData;
+    } catch (error) {
+      logger.error(`❌ Failed to update session window for account ${accountId}:`, error);
+      throw error;
+    }
+  }
+
+  // 🕐 计算会话窗口开始时间
+  _calculateSessionWindowStart(requestTime) {
+    const hour = requestTime.getHours();
+    const windowStartHour = Math.floor(hour / 5) * 5; // 向下取整到最近的5小时边界
+    
+    const windowStart = new Date(requestTime);
+    windowStart.setHours(windowStartHour, 0, 0, 0);
+    
+    return windowStart;
+  }
+
+  // 🕐 计算会话窗口结束时间
+  _calculateSessionWindowEnd(startTime) {
+    const endTime = new Date(startTime);
+    endTime.setHours(endTime.getHours() + 5); // 加5小时
+    return endTime;
+  }
+
+  // 📊 获取会话窗口信息
+  async getSessionWindowInfo(accountId) {
+    try {
+      const accountData = await redis.getClaudeAccount(accountId);
+      if (!accountData || Object.keys(accountData).length === 0) {
+        return null;
+      }
+
+      // 如果没有会话窗口信息，返回null
+      if (!accountData.sessionWindowStart || !accountData.sessionWindowEnd) {
+        return {
+          hasActiveWindow: false,
+          windowStart: null,
+          windowEnd: null,
+          progress: 0,
+          remainingTime: null,
+          lastRequestTime: accountData.lastRequestTime || null
+        };
+      }
+
+      const now = new Date();
+      const windowStart = new Date(accountData.sessionWindowStart);
+      const windowEnd = new Date(accountData.sessionWindowEnd);
+      const currentTime = now.getTime();
+
+      // 检查窗口是否已过期
+      if (currentTime >= windowEnd.getTime()) {
+        return {
+          hasActiveWindow: false,
+          windowStart: accountData.sessionWindowStart,
+          windowEnd: accountData.sessionWindowEnd,
+          progress: 100,
+          remainingTime: 0,
+          lastRequestTime: accountData.lastRequestTime || null
+        };
+      }
+
+      // 计算进度百分比
+      const totalDuration = windowEnd.getTime() - windowStart.getTime();
+      const elapsedTime = currentTime - windowStart.getTime();
+      const progress = Math.round((elapsedTime / totalDuration) * 100);
+
+      // 计算剩余时间（分钟）
+      const remainingTime = Math.round((windowEnd.getTime() - currentTime) / (1000 * 60));
+
+      return {
+        hasActiveWindow: true,
+        windowStart: accountData.sessionWindowStart,
+        windowEnd: accountData.sessionWindowEnd,
+        progress,
+        remainingTime,
+        lastRequestTime: accountData.lastRequestTime || null
+      };
+    } catch (error) {
+      logger.error(`❌ Failed to get session window info for account ${accountId}:`, error);
+      return null;
+    }
+  }
+
+  // 🔄 初始化所有账户的会话窗口（从历史数据恢复）
+  async initializeSessionWindows(forceRecalculate = false) {
+    try {
+      logger.info('🔄 Initializing session windows for all Claude accounts...');
+      
+      const accounts = await redis.getAllClaudeAccounts();
+      let initializedCount = 0;
+      let skippedCount = 0;
+      let expiredCount = 0;
+      
+      for (const account of accounts) {
+        // 如果已经有会话窗口信息且不强制重算，跳过
+        if (account.sessionWindowStart && account.sessionWindowEnd && !forceRecalculate) {
+          skippedCount++;
+          logger.debug(`⏭️ Skipped account ${account.name} (${account.id}) - already has session window`);
+          continue;
+        }
+        
+        // 如果有lastUsedAt，基于它恢复会话窗口
+        if (account.lastUsedAt) {
+          const lastUsedTime = new Date(account.lastUsedAt);
+          const now = new Date();
+          
+          // 计算时间差（分钟）
+          const timeSinceLastUsed = Math.round((now.getTime() - lastUsedTime.getTime()) / (1000 * 60));
+          
+          // 计算lastUsedAt对应的会话窗口
+          const windowStart = this._calculateSessionWindowStart(lastUsedTime);
+          const windowEnd = this._calculateSessionWindowEnd(windowStart);
+          
+          // 计算窗口剩余时间（分钟）
+          const timeUntilWindowExpires = Math.round((windowEnd.getTime() - now.getTime()) / (1000 * 60));
+          
+          logger.info(`🔍 Analyzing account ${account.name} (${account.id}):`);
+          logger.info(`   Last used: ${lastUsedTime.toISOString()} (${timeSinceLastUsed} minutes ago)`);
+          logger.info(`   Calculated window: ${windowStart.toISOString()} - ${windowEnd.toISOString()}`);
+          logger.info(`   Window expires in: ${timeUntilWindowExpires > 0 ? timeUntilWindowExpires + ' minutes' : 'EXPIRED'}`);
+          
+          // 只有窗口未过期才恢复
+          if (now.getTime() < windowEnd.getTime()) {
+            account.sessionWindowStart = windowStart.toISOString();
+            account.sessionWindowEnd = windowEnd.toISOString();
+            account.lastRequestTime = account.lastUsedAt;
+            
+            await redis.setClaudeAccount(account.id, account);
+            initializedCount++;
+            
+            logger.success(`✅ Initialized session window for account ${account.name} (${account.id})`);
+          } else {
+            expiredCount++;
+            logger.warn(`⏰ Window expired for account ${account.name} (${account.id}) - will create new window on next request`);
+          }
+        } else {
+          logger.info(`📭 No lastUsedAt data for account ${account.name} (${account.id}) - will create window on first request`);
+        }
+      }
+      
+      logger.success('✅ Session window initialization completed:');
+      logger.success(`   📊 Total accounts: ${accounts.length}`);
+      logger.success(`   ✅ Initialized: ${initializedCount}`);
+      logger.success(`   ⏭️ Skipped (existing): ${skippedCount}`);  
+      logger.success(`   ⏰ Expired: ${expiredCount}`);
+      logger.success(`   📭 No usage data: ${accounts.length - initializedCount - skippedCount - expiredCount}`);
+      
+      return {
+        total: accounts.length,
+        initialized: initializedCount,
+        skipped: skippedCount,
+        expired: expiredCount,
+        noData: accounts.length - initializedCount - skippedCount - expiredCount
+      };
+    } catch (error) {
+      logger.error('❌ Failed to initialize session windows:', error);
+      return {
+        total: 0,
+        initialized: 0,
+        skipped: 0,
+        expired: 0,
+        noData: 0,
+        error: error.message
+      };
     }
   }
 }
