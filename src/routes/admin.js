@@ -340,6 +340,7 @@ router.post('/api-keys', authenticateAdmin, async (req, res) => {
       tokenLimit,
       expiresAt,
       claudeAccountId,
+      claudeConsoleAccountId,
       geminiAccountId,
       permissions,
       concurrencyLimit,
@@ -416,6 +417,7 @@ router.post('/api-keys', authenticateAdmin, async (req, res) => {
       tokenLimit,
       expiresAt,
       claudeAccountId,
+      claudeConsoleAccountId,
       geminiAccountId,
       permissions,
       concurrencyLimit,
@@ -441,7 +443,7 @@ router.post('/api-keys', authenticateAdmin, async (req, res) => {
 router.put('/api-keys/:keyId', authenticateAdmin, async (req, res) => {
   try {
     const { keyId } = req.params;
-    const { tokenLimit, concurrencyLimit, rateLimitWindow, rateLimitRequests, claudeAccountId, geminiAccountId, permissions, enableModelRestriction, restrictedModels, enableClientRestriction, allowedClients, expiresAt, dailyCostLimit, tags } = req.body;
+    const { tokenLimit, concurrencyLimit, rateLimitWindow, rateLimitRequests, claudeAccountId, claudeConsoleAccountId, geminiAccountId, permissions, enableModelRestriction, restrictedModels, enableClientRestriction, allowedClients, expiresAt, dailyCostLimit, tags } = req.body;
 
     // 只允许更新指定字段
     const updates = {};
@@ -477,6 +479,11 @@ router.put('/api-keys/:keyId', authenticateAdmin, async (req, res) => {
     if (claudeAccountId !== undefined) {
       // 空字符串表示解绑，null或空字符串都设置为空字符串
       updates.claudeAccountId = claudeAccountId || '';
+    }
+    
+    if (claudeConsoleAccountId !== undefined) {
+      // 空字符串表示解绑，null或空字符串都设置为空字符串
+      updates.claudeConsoleAccountId = claudeConsoleAccountId || '';
     }
 
     if (geminiAccountId !== undefined) {
@@ -1261,13 +1268,15 @@ router.get('/accounts/:accountId/usage-stats', authenticateAdmin, async (req, re
 // 获取系统概览
 router.get('/dashboard', authenticateAdmin, async (req, res) => {
   try {
-    const [, apiKeys, claudeAccounts, geminiAccounts, todayStats, systemAverages] = await Promise.all([
+    const [, apiKeys, claudeAccounts, claudeConsoleAccounts, geminiAccounts, todayStats, systemAverages, realtimeMetrics] = await Promise.all([
       redis.getSystemStats(),
       apiKeyService.getAllApiKeys(),
       claudeAccountService.getAllAccounts(),
+      claudeConsoleAccountService.getAllAccounts(),
       geminiAccountService.getAllAccounts(),
       redis.getTodayStats(),
-      redis.getSystemAverages()
+      redis.getSystemAverages(),
+      redis.getRealtimeSystemMetrics()
     ]);
 
     // 计算使用统计（统一使用allTokens）
@@ -1282,6 +1291,8 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
     const activeApiKeys = apiKeys.filter(key => key.isActive).length;
     const activeClaudeAccounts = claudeAccounts.filter(acc => acc.isActive && acc.status === 'active').length;
     const rateLimitedClaudeAccounts = claudeAccounts.filter(acc => acc.rateLimitStatus && acc.rateLimitStatus.isRateLimited).length;
+    const activeClaudeConsoleAccounts = claudeConsoleAccounts.filter(acc => acc.isActive && acc.status === 'active').length;
+    const rateLimitedClaudeConsoleAccounts = claudeConsoleAccounts.filter(acc => acc.rateLimitStatus && acc.rateLimitStatus.isRateLimited).length;
     const activeGeminiAccounts = geminiAccounts.filter(acc => acc.isActive && acc.status === 'active').length;
     const rateLimitedGeminiAccounts = geminiAccounts.filter(acc => acc.rateLimitStatus === 'limited').length;
 
@@ -1289,9 +1300,9 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
       overview: {
         totalApiKeys: apiKeys.length,
         activeApiKeys,
-        totalClaudeAccounts: claudeAccounts.length,
-        activeClaudeAccounts: activeClaudeAccounts,
-        rateLimitedClaudeAccounts: rateLimitedClaudeAccounts,
+        totalClaudeAccounts: claudeAccounts.length + claudeConsoleAccounts.length,
+        activeClaudeAccounts: activeClaudeAccounts + activeClaudeConsoleAccounts,
+        rateLimitedClaudeAccounts: rateLimitedClaudeAccounts + rateLimitedClaudeConsoleAccounts,
         totalGeminiAccounts: geminiAccounts.length,
         activeGeminiAccounts: activeGeminiAccounts,
         rateLimitedGeminiAccounts: rateLimitedGeminiAccounts,
@@ -1316,9 +1327,15 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
         rpm: systemAverages.systemRPM,
         tpm: systemAverages.systemTPM
       },
+      realtimeMetrics: {
+        rpm: realtimeMetrics.realtimeRPM,
+        tpm: realtimeMetrics.realtimeTPM,
+        windowMinutes: realtimeMetrics.windowMinutes,
+        isHistorical: realtimeMetrics.windowMinutes === 0 // 标识是否使用了历史数据
+      },
       systemHealth: {
         redisConnected: redis.isConnected,
-        claudeAccountsHealthy: activeClaudeAccounts > 0,
+        claudeAccountsHealthy: (activeClaudeAccounts + activeClaudeConsoleAccounts) > 0,
         geminiAccountsHealthy: activeGeminiAccounts > 0,
         uptime: process.uptime()
       },
@@ -1483,7 +1500,7 @@ router.get('/usage-trend', authenticateAdmin, async (req, res) => {
         endTime = new Date(endDate);
         
         // 调试日志
-        logger.info(`📊 Usage trend hour granularity - received times:`);
+        logger.info('📊 Usage trend hour granularity - received times:');
         logger.info(`  startDate (raw): ${startDate}`);
         logger.info(`  endDate (raw): ${endDate}`);
         logger.info(`  startTime (parsed): ${startTime.toISOString()}`);
@@ -1971,6 +1988,8 @@ router.get('/api-keys-usage-trend', authenticateAdmin, async (req, res) => {
           apiKeys: {}
         };
         
+        // 先收集基础数据
+        const apiKeyDataMap = new Map();
         for (const key of keys) {
           const match = key.match(/usage:hourly:(.+?):\d{4}-\d{2}-\d{2}:\d{2}/);
           if (!match) continue;
@@ -1979,17 +1998,78 @@ router.get('/api-keys-usage-trend', authenticateAdmin, async (req, res) => {
           const data = await client.hgetall(key);
           
           if (data && apiKeyMap.has(apiKeyId)) {
-            const totalTokens = (parseInt(data.inputTokens) || 0) + 
-                              (parseInt(data.outputTokens) || 0) + 
-                              (parseInt(data.cacheCreateTokens) || 0) + 
-                              (parseInt(data.cacheReadTokens) || 0);
+            const inputTokens = parseInt(data.inputTokens) || 0;
+            const outputTokens = parseInt(data.outputTokens) || 0;
+            const cacheCreateTokens = parseInt(data.cacheCreateTokens) || 0;
+            const cacheReadTokens = parseInt(data.cacheReadTokens) || 0;
+            const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens;
             
-            hourData.apiKeys[apiKeyId] = {
+            apiKeyDataMap.set(apiKeyId, {
               name: apiKeyMap.get(apiKeyId).name,
               tokens: totalTokens,
-              requests: parseInt(data.requests) || 0
-            };
+              requests: parseInt(data.requests) || 0,
+              inputTokens,
+              outputTokens,
+              cacheCreateTokens,
+              cacheReadTokens
+            });
           }
+        }
+        
+        // 获取该小时的模型级别数据来计算准确费用
+        const modelPattern = `usage:*:model:hourly:*:${hourKey}`;
+        const modelKeys = await client.keys(modelPattern);
+        const apiKeyCostMap = new Map();
+        
+        for (const modelKey of modelKeys) {
+          const match = modelKey.match(/usage:(.+?):model:hourly:(.+?):\d{4}-\d{2}-\d{2}:\d{2}/);
+          if (!match) continue;
+          
+          const apiKeyId = match[1];
+          const model = match[2];
+          const modelData = await client.hgetall(modelKey);
+          
+          if (modelData && apiKeyDataMap.has(apiKeyId)) {
+            const usage = {
+              input_tokens: parseInt(modelData.inputTokens) || 0,
+              output_tokens: parseInt(modelData.outputTokens) || 0,
+              cache_creation_input_tokens: parseInt(modelData.cacheCreateTokens) || 0,
+              cache_read_input_tokens: parseInt(modelData.cacheReadTokens) || 0
+            };
+            
+            const costResult = CostCalculator.calculateCost(usage, model);
+            const currentCost = apiKeyCostMap.get(apiKeyId) || 0;
+            apiKeyCostMap.set(apiKeyId, currentCost + costResult.costs.total);
+          }
+        }
+        
+        // 组合数据
+        for (const [apiKeyId, data] of apiKeyDataMap) {
+          const cost = apiKeyCostMap.get(apiKeyId) || 0;
+          
+          // 如果没有模型级别数据，使用默认模型计算（降级方案）
+          let finalCost = cost;
+          let formattedCost = CostCalculator.formatCost(cost);
+          
+          if (cost === 0 && data.tokens > 0) {
+            const usage = {
+              input_tokens: data.inputTokens,
+              output_tokens: data.outputTokens,
+              cache_creation_input_tokens: data.cacheCreateTokens,
+              cache_read_input_tokens: data.cacheReadTokens
+            };
+            const fallbackResult = CostCalculator.calculateCost(usage, 'claude-3-5-sonnet-20241022');
+            finalCost = fallbackResult.costs.total;
+            formattedCost = fallbackResult.formatted.total;
+          }
+          
+          hourData.apiKeys[apiKeyId] = {
+            name: data.name,
+            tokens: data.tokens,
+            requests: data.requests,
+            cost: finalCost,
+            formattedCost: formattedCost
+          };
         }
         
         trendData.push(hourData);
@@ -2016,6 +2096,8 @@ router.get('/api-keys-usage-trend', authenticateAdmin, async (req, res) => {
           apiKeys: {}
         };
         
+        // 先收集基础数据
+        const apiKeyDataMap = new Map();
         for (const key of keys) {
           const match = key.match(/usage:daily:(.+?):\d{4}-\d{2}-\d{2}/);
           if (!match) continue;
@@ -2024,17 +2106,78 @@ router.get('/api-keys-usage-trend', authenticateAdmin, async (req, res) => {
           const data = await client.hgetall(key);
           
           if (data && apiKeyMap.has(apiKeyId)) {
-            const totalTokens = (parseInt(data.inputTokens) || 0) + 
-                              (parseInt(data.outputTokens) || 0) + 
-                              (parseInt(data.cacheCreateTokens) || 0) + 
-                              (parseInt(data.cacheReadTokens) || 0);
+            const inputTokens = parseInt(data.inputTokens) || 0;
+            const outputTokens = parseInt(data.outputTokens) || 0;
+            const cacheCreateTokens = parseInt(data.cacheCreateTokens) || 0;
+            const cacheReadTokens = parseInt(data.cacheReadTokens) || 0;
+            const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens;
             
-            dayData.apiKeys[apiKeyId] = {
+            apiKeyDataMap.set(apiKeyId, {
               name: apiKeyMap.get(apiKeyId).name,
               tokens: totalTokens,
-              requests: parseInt(data.requests) || 0
-            };
+              requests: parseInt(data.requests) || 0,
+              inputTokens,
+              outputTokens,
+              cacheCreateTokens,
+              cacheReadTokens
+            });
           }
+        }
+        
+        // 获取该天的模型级别数据来计算准确费用
+        const modelPattern = `usage:*:model:daily:*:${dateStr}`;
+        const modelKeys = await client.keys(modelPattern);
+        const apiKeyCostMap = new Map();
+        
+        for (const modelKey of modelKeys) {
+          const match = modelKey.match(/usage:(.+?):model:daily:(.+?):\d{4}-\d{2}-\d{2}/);
+          if (!match) continue;
+          
+          const apiKeyId = match[1];
+          const model = match[2];
+          const modelData = await client.hgetall(modelKey);
+          
+          if (modelData && apiKeyDataMap.has(apiKeyId)) {
+            const usage = {
+              input_tokens: parseInt(modelData.inputTokens) || 0,
+              output_tokens: parseInt(modelData.outputTokens) || 0,
+              cache_creation_input_tokens: parseInt(modelData.cacheCreateTokens) || 0,
+              cache_read_input_tokens: parseInt(modelData.cacheReadTokens) || 0
+            };
+            
+            const costResult = CostCalculator.calculateCost(usage, model);
+            const currentCost = apiKeyCostMap.get(apiKeyId) || 0;
+            apiKeyCostMap.set(apiKeyId, currentCost + costResult.costs.total);
+          }
+        }
+        
+        // 组合数据
+        for (const [apiKeyId, data] of apiKeyDataMap) {
+          const cost = apiKeyCostMap.get(apiKeyId) || 0;
+          
+          // 如果没有模型级别数据，使用默认模型计算（降级方案）
+          let finalCost = cost;
+          let formattedCost = CostCalculator.formatCost(cost);
+          
+          if (cost === 0 && data.tokens > 0) {
+            const usage = {
+              input_tokens: data.inputTokens,
+              output_tokens: data.outputTokens,
+              cache_creation_input_tokens: data.cacheCreateTokens,
+              cache_read_input_tokens: data.cacheReadTokens
+            };
+            const fallbackResult = CostCalculator.calculateCost(usage, 'claude-3-5-sonnet-20241022');
+            finalCost = fallbackResult.costs.total;
+            formattedCost = fallbackResult.formatted.total;
+          }
+          
+          dayData.apiKeys[apiKeyId] = {
+            name: data.name,
+            tokens: data.tokens,
+            requests: data.requests,
+            cost: finalCost,
+            formattedCost: formattedCost
+          };
         }
         
         trendData.push(dayData);
