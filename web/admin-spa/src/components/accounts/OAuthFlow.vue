@@ -325,6 +325,17 @@
                     <p class="mb-2 text-sm text-orange-700">
                       请在新标签页中打开授权链接，登录您的 OpenAI 账户并授权。
                     </p>
+                    <div class="mb-3 rounded border border-amber-300 bg-amber-50 p-3">
+                      <p class="text-xs text-amber-800">
+                        <i class="fas fa-clock mr-1" />
+                        <strong>重要提示：</strong>授权后页面可能会加载较长时间，请耐心等待。
+                      </p>
+                      <p class="mt-2 text-xs text-amber-700">
+                        当浏览器地址栏变为
+                        <strong class="font-mono">http://localhost:1455/...</strong>
+                        开头时，表示授权已完成。
+                      </p>
+                    </div>
                     <div class="rounded border border-yellow-300 bg-yellow-50 p-3">
                       <p class="text-xs text-yellow-800">
                         <i class="fas fa-exclamation-triangle mr-1" />
@@ -345,27 +356,40 @@
                     3
                   </div>
                   <div class="flex-1">
-                    <p class="mb-2 font-medium text-orange-900">输入 Authorization Code</p>
+                    <p class="mb-2 font-medium text-orange-900">输入授权链接或 Code</p>
                     <p class="mb-3 text-sm text-orange-700">
-                      授权完成后，页面会显示一个
-                      <strong>Authorization Code</strong>，请将其复制并粘贴到下方输入框：
+                      授权完成后，当页面地址变为
+                      <strong class="font-mono">http://localhost:1455/...</strong> 时：
                     </p>
                     <div class="space-y-3">
                       <div>
                         <label class="mb-2 block text-sm font-semibold text-gray-700">
-                          <i class="fas fa-key mr-2 text-orange-500" />Authorization Code
+                          <i class="fas fa-link mr-2 text-orange-500" />授权链接或 Code
                         </label>
                         <textarea
                           v-model="authCode"
                           class="form-input w-full resize-none font-mono text-sm"
-                          placeholder="粘贴从OpenAI页面获取的Authorization Code..."
+                          placeholder="方式1：复制完整的链接（http://localhost:1455/auth/callback?code=...）&#10;方式2：仅复制 code 参数的值&#10;系统会自动识别并提取所需信息"
                           rows="3"
                         />
                       </div>
-                      <p class="mt-2 text-xs text-gray-500">
-                        <i class="fas fa-info-circle mr-1" />
-                        请粘贴从OpenAI页面复制的Authorization Code
-                      </p>
+                      <div class="rounded border border-blue-300 bg-blue-50 p-2">
+                        <p class="text-xs text-blue-700">
+                          <i class="fas fa-lightbulb mr-1" />
+                          <strong>提示：</strong>您可以直接复制整个链接或仅复制 code
+                          参数值，系统会自动识别。
+                        </p>
+                        <p class="mt-1 text-xs text-blue-600">
+                          • 完整链接示例：<span class="font-mono"
+                            >http://localhost:1455/auth/callback?code=ac_4hm8...</span
+                          >
+                        </p>
+                        <p class="text-xs text-blue-600">
+                          • 仅 Code 示例：<span class="font-mono"
+                            >ac_4hm8iqmx9A2fzMy_cwye7U3W7...</span
+                          >
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -444,8 +468,11 @@ watch(authCode, (newValue) => {
 
   // 如果是 URL 格式
   if (isUrl) {
-    // 检查是否是正确的 localhost:45462 开头的 URL
-    if (trimmedValue.startsWith('http://localhost:45462')) {
+    // 检查是否是正确的 localhost 回调 URL
+    if (
+      trimmedValue.startsWith('http://localhost:45462') ||
+      trimmedValue.startsWith('http://localhost:1455')
+    ) {
       try {
         const url = new URL(trimmedValue)
         const code = url.searchParams.get('code')
@@ -479,8 +506,8 @@ watch(authCode, (newValue) => {
         // 不是有效的URL，保持原值
       }
     } else {
-      // 错误的 URL（不是 localhost:45462 开头）
-      showToast('请粘贴以 http://localhost:45462 开头的链接', 'error')
+      // 错误的 URL（不是正确的 localhost 回调地址）
+      showToast('请粘贴以 http://localhost:1455 或 http://localhost:45462 开头的链接', 'error')
     }
   }
   // 如果不是 URL，保持原值（兼容直接输入授权码）

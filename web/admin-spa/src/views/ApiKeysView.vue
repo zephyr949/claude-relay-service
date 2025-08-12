@@ -47,6 +47,30 @@
               </div>
             </div>
 
+            <!-- 搜索框 -->
+            <div class="group relative min-w-[200px]">
+              <div
+                class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
+              ></div>
+              <div class="relative flex items-center">
+                <input
+                  v-model="searchKeyword"
+                  class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pl-9 text-sm text-gray-700 placeholder-gray-400 shadow-sm transition-all duration-200 hover:border-gray-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  placeholder="搜索名称..."
+                  type="text"
+                  @input="currentPage = 1"
+                />
+                <i class="fas fa-search absolute left-3 text-sm text-cyan-500" />
+                <button
+                  v-if="searchKeyword"
+                  class="absolute right-2 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  @click="clearSearch"
+                >
+                  <i class="fas fa-times text-xs" />
+                </button>
+              </div>
+            </div>
+
             <!-- 刷新按钮 -->
             <button
               class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
@@ -1153,6 +1177,9 @@ const selectedApiKeyForDetail = ref(null)
 const selectedTagFilter = ref('')
 const availableTags = ref([])
 
+// 搜索相关
+const searchKeyword = ref('')
+
 // 下拉选项数据
 const timeRangeOptions = ref([
   { value: 'today', label: '今日', icon: 'fa-clock' },
@@ -1198,6 +1225,14 @@ const sortedApiKeys = computed(() => {
   if (selectedTagFilter.value) {
     filteredKeys = apiKeys.value.filter(
       (key) => key.tags && key.tags.includes(selectedTagFilter.value)
+    )
+  }
+
+  // 然后进行名称搜索
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase().trim()
+    filteredKeys = filteredKeys.filter(
+      (key) => key.name && key.name.toLowerCase().includes(keyword)
     )
   }
 
@@ -1939,8 +1974,14 @@ const formatLastUsed = (dateString) => {
   return date.toLocaleDateString('zh-CN')
 }
 
+// 清除搜索
+const clearSearch = () => {
+  searchKeyword.value = ''
+  currentPage.value = 1
+}
+
 // 监听筛选条件变化，重置页码
-watch([selectedTagFilter, apiKeyStatsTimeRange], () => {
+watch([selectedTagFilter, apiKeyStatsTimeRange, searchKeyword], () => {
   currentPage.value = 1
 })
 

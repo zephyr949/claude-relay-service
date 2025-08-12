@@ -38,6 +38,8 @@ class UnifiedGeminiScheduler {
           logger.info(
             `🎯 Using bound dedicated Gemini account: ${boundAccount.name} (${apiKeyData.geminiAccountId}) for API key ${apiKeyData.name}`
           )
+          // 更新账户的最后使用时间
+          await geminiAccountService.markAccountUsed(apiKeyData.geminiAccountId)
           return {
             accountId: apiKeyData.geminiAccountId,
             accountType: 'gemini'
@@ -62,6 +64,8 @@ class UnifiedGeminiScheduler {
             logger.info(
               `🎯 Using sticky session account: ${mappedAccount.accountId} (${mappedAccount.accountType}) for session ${sessionHash}`
             )
+            // 更新账户的最后使用时间
+            await geminiAccountService.markAccountUsed(mappedAccount.accountId)
             return mappedAccount
           } else {
             logger.warn(
@@ -107,6 +111,9 @@ class UnifiedGeminiScheduler {
       logger.info(
         `🎯 Selected account: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) with priority ${selectedAccount.priority} for API key ${apiKeyData.name}`
       )
+
+      // 更新账户的最后使用时间
+      await geminiAccountService.markAccountUsed(selectedAccount.accountId)
 
       return {
         accountId: selectedAccount.accountId,
@@ -378,6 +385,8 @@ class UnifiedGeminiScheduler {
               logger.info(
                 `🎯 Using sticky session account from group: ${mappedAccount.accountId} (${mappedAccount.accountType}) for session ${sessionHash}`
               )
+              // 更新账户的最后使用时间
+              await geminiAccountService.markAccountUsed(mappedAccount.accountId)
               return mappedAccount
             }
           }
@@ -472,6 +481,9 @@ class UnifiedGeminiScheduler {
       logger.info(
         `🎯 Selected account from Gemini group ${group.name}: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) with priority ${selectedAccount.priority}`
       )
+
+      // 更新账户的最后使用时间
+      await geminiAccountService.markAccountUsed(selectedAccount.accountId)
 
       return {
         accountId: selectedAccount.accountId,

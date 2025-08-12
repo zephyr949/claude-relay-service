@@ -38,6 +38,8 @@ class UnifiedOpenAIScheduler {
           logger.info(
             `🎯 Using bound dedicated OpenAI account: ${boundAccount.name} (${apiKeyData.openaiAccountId}) for API key ${apiKeyData.name}`
           )
+          // 更新账户的最后使用时间
+          await openaiAccountService.recordUsage(apiKeyData.openaiAccountId, 0)
           return {
             accountId: apiKeyData.openaiAccountId,
             accountType: 'openai'
@@ -62,6 +64,8 @@ class UnifiedOpenAIScheduler {
             logger.info(
               `🎯 Using sticky session account: ${mappedAccount.accountId} (${mappedAccount.accountType}) for session ${sessionHash}`
             )
+            // 更新账户的最后使用时间
+            await openaiAccountService.recordUsage(mappedAccount.accountId, 0)
             return mappedAccount
           } else {
             logger.warn(
@@ -107,6 +111,9 @@ class UnifiedOpenAIScheduler {
       logger.info(
         `🎯 Selected account: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) with priority ${selectedAccount.priority} for API key ${apiKeyData.name}`
       )
+
+      // 更新账户的最后使用时间
+      await openaiAccountService.recordUsage(selectedAccount.accountId, 0)
 
       return {
         accountId: selectedAccount.accountId,
@@ -372,6 +379,8 @@ class UnifiedOpenAIScheduler {
               logger.info(
                 `🎯 Using sticky session account from group: ${mappedAccount.accountId} (${mappedAccount.accountType})`
               )
+              // 更新账户的最后使用时间
+              await openaiAccountService.recordUsage(mappedAccount.accountId, 0)
               return mappedAccount
             }
           }
@@ -458,6 +467,9 @@ class UnifiedOpenAIScheduler {
       logger.info(
         `🎯 Selected account from group: ${selectedAccount.name} (${selectedAccount.accountId}) with priority ${selectedAccount.priority}`
       )
+
+      // 更新账户的最后使用时间
+      await openaiAccountService.recordUsage(selectedAccount.accountId, 0)
 
       return {
         accountId: selectedAccount.accountId,
