@@ -27,8 +27,8 @@ class AccountGroupService {
       }
 
       // 验证平台类型
-      if (!['claude', 'gemini'].includes(platform)) {
-        throw new Error('平台类型必须是 claude 或 gemini')
+      if (!['claude', 'gemini', 'openai'].includes(platform)) {
+        throw new Error('平台类型必须是 claude、gemini 或 openai')
       }
 
       const client = redis.getClientSafe()
@@ -309,7 +309,9 @@ class AccountGroupService {
         const keyData = await client.hgetall(`api_key:${keyId}`)
         if (
           keyData &&
-          (keyData.claudeAccountId === groupKey || keyData.geminiAccountId === groupKey)
+          (keyData.claudeAccountId === groupKey ||
+            keyData.geminiAccountId === groupKey ||
+            keyData.openaiAccountId === groupKey)
         ) {
           boundApiKeys.push({
             id: keyId,

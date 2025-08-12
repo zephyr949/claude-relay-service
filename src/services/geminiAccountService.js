@@ -363,6 +363,9 @@ async function getAccount(accountId) {
     }
   }
 
+  // 转换 schedulable 字符串为布尔值（与 claudeConsoleAccountService 保持一致）
+  accountData.schedulable = accountData.schedulable !== 'false' // 默认为true，只有明确设置为'false'才为false
+
   return accountData
 }
 
@@ -384,6 +387,11 @@ async function updateAccount(accountId, updates) {
   // 处理代理设置
   if (updates.proxy !== undefined) {
     updates.proxy = updates.proxy ? JSON.stringify(updates.proxy) : ''
+  }
+
+  // 处理 schedulable 字段，确保正确转换为字符串存储
+  if (updates.schedulable !== undefined) {
+    updates.schedulable = updates.schedulable.toString()
   }
 
   // 加密敏感字段
@@ -504,6 +512,9 @@ async function getAllAccounts() {
   for (const key of keys) {
     const accountData = await client.hgetall(key)
     if (accountData && Object.keys(accountData).length > 0) {
+      // 获取限流状态信息
+      const rateLimitInfo = await getAccountRateLimitInfo(accountData.id)
+
       // 解析代理配置
       if (accountData.proxy) {
         try {
@@ -514,12 +525,27 @@ async function getAllAccounts() {
         }
       }
 
+      // 转换 schedulable 字符串为布尔值（与 getAccount 保持一致）
+      accountData.schedulable = accountData.schedulable !== 'false' // 默认为true，只有明确设置为'false'才为false
+
       // 不解密敏感字段，只返回基本信息
       accounts.push({
         ...accountData,
         geminiOauth: accountData.geminiOauth ? '[ENCRYPTED]' : '',
         accessToken: accountData.accessToken ? '[ENCRYPTED]' : '',
-        refreshToken: accountData.refreshToken ? '[ENCRYPTED]' : ''
+        refreshToken: accountData.refreshToken ? '[ENCRYPTED]' : '',
+        // 添加限流状态信息（统一格式）
+        rateLimitStatus: rateLimitInfo
+          ? {
+              isRateLimited: rateLimitInfo.isRateLimited,
+              rateLimitedAt: rateLimitInfo.rateLimitedAt,
+              minutesRemaining: rateLimitInfo.minutesRemaining
+            }
+          : {
+              isRateLimited: false,
+              rateLimitedAt: null,
+              minutesRemaining: 0
+            }
       })
     }
   }
@@ -772,6 +798,45 @@ async function setAccountRateLimited(accountId, isLimited = true) {
       }
 
   await updateAccount(accountId, updates)
+}
+
+// 获取账户的限流信息（参考 claudeAccountService 的实现）
+async function getAccountRateLimitInfo(accountId) {
+  try {
+    const account = await getAccount(accountId)
+    if (!account) {
+      return null
+    }
+
+    if (account.rateLimitStatus === 'limited' && account.rateLimitedAt) {
+      const rateLimitedAt = new Date(account.rateLimitedAt)
+      const now = new Date()
+      const minutesSinceRateLimit = Math.floor((now - rateLimitedAt) / (1000 * 60))
+
+      // Gemini 限流持续时间为 1 小时
+      const minutesRemaining = Math.max(0, 60 - minutesSinceRateLimit)
+      const rateLimitEndAt = new Date(rateLimitedAt.getTime() + 60 * 60 * 1000).toISOString()
+
+      return {
+        isRateLimited: minutesRemaining > 0,
+        rateLimitedAt: account.rateLimitedAt,
+        minutesSinceRateLimit,
+        minutesRemaining,
+        rateLimitEndAt
+      }
+    }
+
+    return {
+      isRateLimited: false,
+      rateLimitedAt: null,
+      minutesSinceRateLimit: 0,
+      minutesRemaining: 0,
+      rateLimitEndAt: null
+    }
+  } catch (error) {
+    logger.error(`❌ Failed to get rate limit info for Gemini account: ${accountId}`, error)
+    return null
+  }
 }
 
 // 获取配置的OAuth客户端 - 参考GeminiCliSimulator的getOauthClient方法
@@ -1137,6 +1202,7 @@ module.exports = {
   refreshAccountToken,
   markAccountUsed,
   setAccountRateLimited,
+  getAccountRateLimitInfo,
   isTokenExpired,
   getOauthClient,
   loadCodeAssist,

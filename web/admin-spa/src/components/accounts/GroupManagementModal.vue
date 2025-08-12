@@ -54,6 +54,10 @@
                   <input v-model="createForm.platform" class="mr-2" type="radio" value="gemini" />
                   <span class="text-sm text-gray-700">Gemini</span>
                 </label>
+                <label class="flex cursor-pointer items-center">
+                  <input v-model="createForm.platform" class="mr-2" type="radio" value="openai" />
+                  <span class="text-sm text-gray-700">OpenAI</span>
+                </label>
               </div>
             </div>
 
@@ -114,10 +118,18 @@
                       'rounded-full px-2 py-1 text-xs font-medium',
                       group.platform === 'claude'
                         ? 'bg-purple-100 text-purple-700'
-                        : 'bg-blue-100 text-blue-700'
+                        : group.platform === 'gemini'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-700'
                     ]"
                   >
-                    {{ group.platform === 'claude' ? 'Claude' : 'Gemini' }}
+                    {{
+                      group.platform === 'claude'
+                        ? 'Claude'
+                        : group.platform === 'gemini'
+                          ? 'Gemini'
+                          : 'OpenAI'
+                    }}
                   </span>
                 </div>
               </div>
@@ -184,7 +196,13 @@
           <div>
             <label class="mb-2 block text-sm font-semibold text-gray-700">平台类型</label>
             <div class="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600">
-              {{ editForm.platform === 'claude' ? 'Claude' : 'Gemini' }}
+              {{
+                editForm.platform === 'claude'
+                  ? 'Claude'
+                  : editForm.platform === 'gemini'
+                    ? 'Gemini'
+                    : 'OpenAI'
+              }}
               <span class="ml-2 text-xs text-gray-500">(不可修改)</span>
             </div>
           </div>

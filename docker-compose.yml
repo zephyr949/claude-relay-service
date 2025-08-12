@@ -8,7 +8,8 @@ services:
     image: weishaw/claude-relay-service:latest
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      # 绑定地址：生产环境建议使用反向代理，设置 BIND_HOST=127.0.0.1
+      - "${BIND_HOST:-0.0.0.0}:${PORT:-3000}:3000"
     environment:
       # 🌐 服务器配置
       - NODE_ENV=production
@@ -82,8 +83,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # 仅在容器网络内部暴露端口，不映射到主机
+    expose:
+      - "6379"
+    # 注意：如需本地调试访问，可取消下行注释（生产环境禁用）
+    # ports:
+    #   - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - ./redis_data:/data
     command: redis-server --save 60 1 --appendonly yes --appendfsync everysec
@@ -100,7 +105,7 @@ services:
     image: rediscommander/redis-commander:latest
     restart: unless-stopped
     ports:
-      - "${REDIS_WEB_PORT:-8081}:8081"
+      - "127.0.0.1:${REDIS_WEB_PORT:-8081}:8081"
     environment:
       - REDIS_HOSTS=local:redis:6379
     depends_on:
@@ -115,7 +120,7 @@ services:
     image: prom/prometheus:latest
     restart: unless-stopped
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -135,7 +140,7 @@ services:
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
     volumes:

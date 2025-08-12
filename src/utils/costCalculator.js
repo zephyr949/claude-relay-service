@@ -81,11 +81,29 @@ class CostCalculator {
 
     if (pricingData) {
       // 转换动态价格格式为内部格式
+      const inputPrice = (pricingData.input_cost_per_token || 0) * 1000000 // 转换为per 1M tokens
+      const outputPrice = (pricingData.output_cost_per_token || 0) * 1000000
+      const cacheReadPrice = (pricingData.cache_read_input_token_cost || 0) * 1000000
+
+      // OpenAI 模型的特殊处理：
+      // - 如果没有 cache_creation_input_token_cost，缓存创建按普通 input 价格计费
+      // - Claude 模型有专门的 cache_creation_input_token_cost
+      let cacheWritePrice = (pricingData.cache_creation_input_token_cost || 0) * 1000000
+
+      // 检测是否为 OpenAI 模型（通过模型名或 litellm_provider）
+      const isOpenAIModel =
+        model.includes('gpt') || model.includes('o1') || pricingData.litellm_provider === 'openai'
+
+      if (isOpenAIModel && !pricingData.cache_creation_input_token_cost && cacheCreateTokens > 0) {
+        // OpenAI 模型：缓存创建按普通 input 价格计费
+        cacheWritePrice = inputPrice
+      }
+
       pricing = {
-        input: (pricingData.input_cost_per_token || 0) * 1000000, // 转换为per 1M tokens
-        output: (pricingData.output_cost_per_token || 0) * 1000000,
-        cacheWrite: (pricingData.cache_creation_input_token_cost || 0) * 1000000,
-        cacheRead: (pricingData.cache_read_input_token_cost || 0) * 1000000
+        input: inputPrice,
+        output: outputPrice,
+        cacheWrite: cacheWritePrice,
+        cacheRead: cacheReadPrice
       }
       usingDynamicPricing = true
     } else {
@@ -126,6 +144,13 @@ class CostCalculator {
         cacheWrite: this.formatCost(cacheWriteCost),
         cacheRead: this.formatCost(cacheReadCost),
         total: this.formatCost(totalCost)
+      },
+      // 添加调试信息
+      debug: {
+        isOpenAIModel: model.includes('gpt') || model.includes('o1'),
+        hasCacheCreatePrice: !!pricingData?.cache_creation_input_token_cost,
+        cacheCreateTokens,
+        cacheWritePriceUsed: pricing.cacheWrite
       }
     }
   }

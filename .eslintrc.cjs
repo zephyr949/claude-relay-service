@@ -14,6 +14,7 @@ module.exports = {
   rules: {
     // 基础规则
     'no-console': 'off', // Node.js 项目允许 console
+    'consistent-return': 'off',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
     'prettier/prettier': 'error',
 
@@ -33,7 +34,6 @@ module.exports = {
     // 代码质量
     eqeqeq: ['error', 'always'],
     curly: ['error', 'all'],
-    'consistent-return': 'error',
     'no-throw-literal': 'error',
     'prefer-promise-reject-errors': 'error',
 
@@ -43,7 +43,6 @@ module.exports = {
     'template-curly-spacing': ['error', 'never'],
 
     // Node.js 特定规则
-    'no-process-exit': 'error',
     'no-path-concat': 'error',
     'handle-callback-err': 'error',
 

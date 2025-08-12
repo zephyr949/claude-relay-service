@@ -85,6 +85,20 @@
                     dashboardData.accountsByPlatform.bedrock.total
                   }}</span>
                 </div>
+                <!-- OpenAI账户 -->
+                <div
+                  v-if="
+                    dashboardData.accountsByPlatform.openai &&
+                    dashboardData.accountsByPlatform.openai.total > 0
+                  "
+                  class="inline-flex items-center gap-0.5"
+                  :title="`OpenAI: ${dashboardData.accountsByPlatform.openai.total} 个 (正常: ${dashboardData.accountsByPlatform.openai.normal})`"
+                >
+                  <i class="fas fa-openai text-xs text-gray-100" />
+                  <span class="text-xs font-medium text-gray-700">{{
+                    dashboardData.accountsByPlatform.openai.total
+                  }}</span>
+                </div>
               </div>
             </div>
             <p class="mt-1 text-xs text-gray-500">

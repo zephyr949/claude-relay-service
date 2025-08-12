@@ -382,6 +382,76 @@
             </div>
           </div>
         </div>
+
+        <!-- Codex 环境变量设置 -->
+        <div class="mt-8">
+          <h5
+            class="mb-2 flex items-center text-base font-semibold text-gray-800 sm:mb-3 sm:text-lg"
+          >
+            <i class="fas fa-code mr-2 text-indigo-600" />
+            配置 Codex 环境变量
+          </h5>
+          <p class="mb-3 text-sm text-gray-700 sm:mb-4 sm:text-base">
+            如果你使用支持 OpenAI API 的工具（如 Codex），需要设置以下环境变量：
+          </p>
+
+          <div class="space-y-4">
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">
+                PowerShell 设置方法
+              </h6>
+              <p class="mb-3 text-sm text-gray-600">在 PowerShell 中运行以下命令：</p>
+              <div
+                class="overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">
+                  $env:OPENAI_BASE_URL = "{{ openaiBaseUrl }}"
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  $env:OPENAI_API_KEY = "你的API密钥"
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-yellow-700">
+                💡 使用与 Claude Code 相同的 API 密钥即可，格式如 cr_xxxxxxxxxx。
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">
+                PowerShell 永久设置（用户级）
+              </h6>
+              <p class="mb-3 text-sm text-gray-600">在 PowerShell 中运行以下命令：</p>
+              <div
+                class="mb-3 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="mb-2"># 设置用户级环境变量（永久生效）</div>
+                <div class="whitespace-nowrap text-gray-300">
+                  [System.Environment]::SetEnvironmentVariable("OPENAI_BASE_URL", "{{
+                    openaiBaseUrl
+                  }}", [System.EnvironmentVariableTarget]::User)
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  [System.Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "你的API密钥",
+                  [System.EnvironmentVariableTarget]::User)
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-blue-700">
+                💡 设置后需要重新打开 PowerShell 窗口才能生效。
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3 sm:p-4">
+              <h6 class="mb-2 font-medium text-indigo-800">验证 Codex 环境变量</h6>
+              <p class="mb-3 text-sm text-indigo-700">在 PowerShell 中验证：</p>
+              <div
+                class="space-y-1 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">echo $env:OPENAI_BASE_URL</div>
+                <div class="whitespace-nowrap text-gray-300">echo $env:OPENAI_API_KEY</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 第四步：开始使用 -->
@@ -790,6 +860,79 @@
             </div>
           </div>
         </div>
+
+        <!-- Codex 环境变量设置 -->
+        <div class="mt-8">
+          <h5
+            class="mb-2 flex items-center text-base font-semibold text-gray-800 sm:mb-3 sm:text-lg"
+          >
+            <i class="fas fa-code mr-2 text-indigo-600" />
+            配置 Codex 环境变量
+          </h5>
+          <p class="mb-3 text-sm text-gray-700 sm:mb-4 sm:text-base">
+            如果你使用支持 OpenAI API 的工具（如 Codex），需要设置以下环境变量：
+          </p>
+
+          <div class="space-y-4">
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">Terminal 设置方法</h6>
+              <p class="mb-3 text-sm text-gray-600">在 Terminal 中运行以下命令：</p>
+              <div
+                class="overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">
+                  export OPENAI_BASE_URL="{{ openaiBaseUrl }}"
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  export OPENAI_API_KEY="你的API密钥"
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-yellow-700">
+                💡 使用与 Claude Code 相同的 API 密钥即可，格式如 cr_xxxxxxxxxx。
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">永久设置方法</h6>
+              <p class="mb-3 text-sm text-gray-600">添加到你的 shell 配置文件：</p>
+              <div
+                class="mb-3 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="mb-2"># 对于 zsh (默认)</div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_BASE_URL="{{ openaiBaseUrl }}"' >> ~/.zshrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_API_KEY="你的API密钥"' >> ~/.zshrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">source ~/.zshrc</div>
+              </div>
+              <div
+                class="overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="mb-2"># 对于 bash</div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_BASE_URL="{{ openaiBaseUrl }}"' >> ~/.bash_profile
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_API_KEY="你的API密钥"' >> ~/.bash_profile
+                </div>
+                <div class="whitespace-nowrap text-gray-300">source ~/.bash_profile</div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3 sm:p-4">
+              <h6 class="mb-2 font-medium text-indigo-800">验证 Codex 环境变量</h6>
+              <p class="mb-3 text-sm text-indigo-700">在 Terminal 中验证：</p>
+              <div
+                class="space-y-1 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">echo $OPENAI_BASE_URL</div>
+                <div class="whitespace-nowrap text-gray-300">echo $OPENAI_API_KEY</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 第四步：开始使用 -->
@@ -1191,6 +1334,79 @@
             </div>
           </div>
         </div>
+
+        <!-- Codex 环境变量设置 -->
+        <div class="mt-8">
+          <h5
+            class="mb-2 flex items-center text-base font-semibold text-gray-800 sm:mb-3 sm:text-lg"
+          >
+            <i class="fas fa-code mr-2 text-indigo-600" />
+            配置 Codex 环境变量
+          </h5>
+          <p class="mb-3 text-sm text-gray-700 sm:mb-4 sm:text-base">
+            如果你使用支持 OpenAI API 的工具（如 Codex），需要设置以下环境变量：
+          </p>
+
+          <div class="space-y-4">
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">终端设置方法</h6>
+              <p class="mb-3 text-sm text-gray-600">在终端中运行以下命令：</p>
+              <div
+                class="overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">
+                  export OPENAI_BASE_URL="{{ openaiBaseUrl }}"
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  export OPENAI_API_KEY="你的API密钥"
+                </div>
+              </div>
+              <p class="mt-2 text-xs text-yellow-700">
+                💡 使用与 Claude Code 相同的 API 密钥即可，格式如 cr_xxxxxxxxxx。
+              </p>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-white p-3 sm:p-4">
+              <h6 class="mb-2 text-sm font-medium text-gray-800 sm:text-base">永久设置方法</h6>
+              <p class="mb-3 text-sm text-gray-600">添加到你的 shell 配置文件：</p>
+              <div
+                class="mb-3 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="mb-2"># 对于 bash (默认)</div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_BASE_URL="{{ openaiBaseUrl }}"' >> ~/.bashrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_API_KEY="你的API密钥"' >> ~/.bashrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">source ~/.bashrc</div>
+              </div>
+              <div
+                class="overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="mb-2"># 对于 zsh</div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_BASE_URL="{{ openaiBaseUrl }}"' >> ~/.zshrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  echo 'export OPENAI_API_KEY="你的API密钥"' >> ~/.zshrc
+                </div>
+                <div class="whitespace-nowrap text-gray-300">source ~/.zshrc</div>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3 sm:p-4">
+              <h6 class="mb-2 font-medium text-indigo-800">验证 Codex 环境变量</h6>
+              <p class="mb-3 text-sm text-indigo-700">在终端中验证：</p>
+              <div
+                class="space-y-1 overflow-x-auto rounded bg-gray-900 p-2 font-mono text-xs text-green-400 sm:p-3 sm:text-sm"
+              >
+                <div class="whitespace-nowrap text-gray-300">echo $OPENAI_BASE_URL</div>
+                <div class="whitespace-nowrap text-gray-300">echo $OPENAI_API_KEY</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 第四步：开始使用 -->
@@ -1394,6 +1610,11 @@ const currentBaseUrl = computed(() => {
 // Gemini CLI 基础URL
 const geminiBaseUrl = computed(() => {
   return getBaseUrlPrefix() + '/gemini'
+})
+
+// OpenAI/Codex 基础URL
+const openaiBaseUrl = computed(() => {
+  return getBaseUrlPrefix() + '/openai'
 })
 </script>
 

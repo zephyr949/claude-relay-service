@@ -319,7 +319,6 @@ async function handleLoadCodeAssist(req, res) {
       requestedModel
     )
     const { accessToken, refreshToken } = await geminiAccountService.getAccount(accountId)
-    logger.info(`accessToken: ${accessToken}`)
 
     const { metadata, cloudaicompanionProject } = req.body
 

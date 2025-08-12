@@ -206,18 +206,60 @@
                       <div class="truncate text-xs text-gray-500" :title="key.id">
                         {{ key.id }}
                       </div>
-                      <div class="mt-1 truncate text-xs text-gray-500">
-                        <span
-                          v-if="key.claudeAccountId"
-                          :title="`绑定: ${getBoundAccountName(key.claudeAccountId)}`"
+                      <!-- 账户绑定信息 -->
+                      <div class="mt-1.5 space-y-1">
+                        <!-- Claude 绑定 -->
+                        <div
+                          v-if="key.claudeAccountId || key.claudeConsoleAccountId"
+                          class="flex items-center gap-1 text-xs"
                         >
-                          <i class="fas fa-link mr-1" />
-                          {{ getBoundAccountName(key.claudeAccountId) }}
-                        </span>
-                        <span v-else>
+                          <span
+                            class="inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-indigo-700"
+                          >
+                            <i class="fas fa-brain mr-1 text-[10px]" />
+                            Claude
+                          </span>
+                          <span class="truncate text-gray-600">
+                            {{ getClaudeBindingInfo(key) }}
+                          </span>
+                        </div>
+                        <!-- Gemini 绑定 -->
+                        <div v-if="key.geminiAccountId" class="flex items-center gap-1 text-xs">
+                          <span
+                            class="inline-flex items-center rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-700"
+                          >
+                            <i class="fas fa-robot mr-1 text-[10px]" />
+                            Gemini
+                          </span>
+                          <span class="truncate text-gray-600">
+                            {{ getGeminiBindingInfo(key) }}
+                          </span>
+                        </div>
+                        <!-- OpenAI 绑定 -->
+                        <div v-if="key.openaiAccountId" class="flex items-center gap-1 text-xs">
+                          <span
+                            class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-gray-700"
+                          >
+                            <i class="fa-openai mr-1 text-[10px]" />
+                            OpenAI
+                          </span>
+                          <span class="truncate text-gray-600">
+                            {{ getOpenAIBindingInfo(key) }}
+                          </span>
+                        </div>
+                        <!-- 无绑定时显示共享池 -->
+                        <div
+                          v-if="
+                            !key.claudeAccountId &&
+                            !key.claudeConsoleAccountId &&
+                            !key.geminiAccountId &&
+                            !key.openaiAccountId
+                          "
+                          class="text-xs text-gray-500"
+                        >
                           <i class="fas fa-share-alt mr-1" />
-                          共享池
-                        </span>
+                          使用共享池
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -712,16 +754,58 @@
             </span>
           </div>
 
-          <!-- 绑定信息 -->
-          <div class="mb-3 text-xs text-gray-600">
-            <span v-if="key.claudeAccountId || key.claudeConsoleAccountId">
-              <i class="fas fa-link mr-1" />
-              绑定: {{ getBoundAccountName(key.claudeAccountId, key.claudeConsoleAccountId) }}
-            </span>
-            <span v-else>
+          <!-- 账户绑定信息 -->
+          <div class="mb-3 space-y-1.5">
+            <!-- Claude 绑定 -->
+            <div
+              v-if="key.claudeAccountId || key.claudeConsoleAccountId"
+              class="flex flex-wrap items-center gap-1 text-xs"
+            >
+              <span
+                class="inline-flex items-center rounded bg-indigo-100 px-2 py-0.5 text-indigo-700"
+              >
+                <i class="fas fa-brain mr-1" />
+                Claude
+              </span>
+              <span class="text-gray-600">
+                {{ getClaudeBindingInfo(key) }}
+              </span>
+            </div>
+            <!-- Gemini 绑定 -->
+            <div v-if="key.geminiAccountId" class="flex flex-wrap items-center gap-1 text-xs">
+              <span
+                class="inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-yellow-700"
+              >
+                <i class="fas fa-robot mr-1" />
+                Gemini
+              </span>
+              <span class="text-gray-600">
+                {{ getGeminiBindingInfo(key) }}
+              </span>
+            </div>
+            <!-- OpenAI 绑定 -->
+            <div v-if="key.openaiAccountId" class="flex flex-wrap items-center gap-1 text-xs">
+              <span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-gray-700">
+                <i class="fa-openai mr-1" />
+                OpenAI
+              </span>
+              <span class="text-gray-600">
+                {{ getOpenAIBindingInfo(key) }}
+              </span>
+            </div>
+            <!-- 无绑定时显示共享池 -->
+            <div
+              v-if="
+                !key.claudeAccountId &&
+                !key.claudeConsoleAccountId &&
+                !key.geminiAccountId &&
+                !key.openaiAccountId
+              "
+              class="text-xs text-gray-500"
+            >
               <i class="fas fa-share-alt mr-1" />
               使用共享池
-            </span>
+            </div>
           </div>
 
           <!-- 统计信息 -->
@@ -1052,7 +1136,14 @@ const expandedApiKeys = ref({})
 const apiKeyModelStats = ref({})
 const apiKeyDateFilters = ref({})
 const defaultTime = ref([new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 2, 1, 23, 59, 59)])
-const accounts = ref({ claude: [], gemini: [], claudeGroups: [], geminiGroups: [] })
+const accounts = ref({
+  claude: [],
+  gemini: [],
+  openai: [],
+  claudeGroups: [],
+  geminiGroups: [],
+  openaiGroups: []
+})
 const editingExpiryKey = ref(null)
 const expiryEditModalRef = ref(null)
 const showUsageDetailModal = ref(false)
@@ -1185,10 +1276,11 @@ const paginatedApiKeys = computed(() => {
 // 加载账户列表
 const loadAccounts = async () => {
   try {
-    const [claudeData, claudeConsoleData, geminiData, groupsData] = await Promise.all([
+    const [claudeData, claudeConsoleData, geminiData, openaiData, groupsData] = await Promise.all([
       apiClient.get('/admin/claude-accounts'),
       apiClient.get('/admin/claude-console-accounts'),
       apiClient.get('/admin/gemini-accounts'),
+      apiClient.get('/admin/openai-accounts'),
       apiClient.get('/admin/account-groups')
     ])
 
@@ -1209,11 +1301,16 @@ const loadAccounts = async () => {
       accounts.value.gemini = geminiData.data || []
     }
 
+    if (openaiData.success) {
+      accounts.value.openai = openaiData.data || []
+    }
+
     if (groupsData.success) {
       // 处理分组数据
       const allGroups = groupsData.data || []
       accounts.value.claudeGroups = allGroups.filter((g) => g.platform === 'claude')
       accounts.value.geminiGroups = allGroups.filter((g) => g.platform === 'gemini')
+      accounts.value.openaiGroups = allGroups.filter((g) => g.platform === 'openai')
     }
   } catch (error) {
     console.error('加载账户列表失败:', error)
@@ -1287,6 +1384,12 @@ const getBoundAccountName = (accountId) => {
       return `分组-${geminiGroup.name}`
     }
 
+    // 从OpenAI分组中查找
+    const openaiGroup = accounts.value.openaiGroups.find((g) => g.id === groupId)
+    if (openaiGroup) {
+      return `分组-${openaiGroup.name}`
+    }
+
     // 如果找不到分组，返回分组ID的前8位
     return `分组-${groupId.substring(0, 8)}`
   }
@@ -1294,17 +1397,92 @@ const getBoundAccountName = (accountId) => {
   // 从Claude账户列表中查找
   const claudeAccount = accounts.value.claude.find((acc) => acc.id === accountId)
   if (claudeAccount) {
-    return `账户-${claudeAccount.name}`
+    return `${claudeAccount.name}`
   }
 
   // 从Gemini账户列表中查找
   const geminiAccount = accounts.value.gemini.find((acc) => acc.id === accountId)
   if (geminiAccount) {
-    return `账户-${geminiAccount.name}`
+    return `${geminiAccount.name}`
+  }
+
+  // 从OpenAI账户列表中查找
+  const openaiAccount = accounts.value.openai.find((acc) => acc.id === accountId)
+  if (openaiAccount) {
+    return `${openaiAccount.name}`
   }
 
   // 如果找不到，返回账户ID的前8位
-  return `账户-${accountId.substring(0, 8)}`
+  return `${accountId.substring(0, 8)}`
+}
+
+// 获取Claude绑定信息
+const getClaudeBindingInfo = (key) => {
+  if (key.claudeAccountId) {
+    const info = getBoundAccountName(key.claudeAccountId)
+    if (key.claudeAccountId.startsWith('group:')) {
+      return info
+    }
+    // 检查账户是否存在
+    const account = accounts.value.claude.find((acc) => acc.id === key.claudeAccountId)
+    if (!account) {
+      return `⚠️ ${info} (账户不存在)`
+    }
+    if (account.accountType === 'dedicated') {
+      return `🔒 专属-${info}`
+    }
+    return info
+  }
+  if (key.claudeConsoleAccountId) {
+    const account = accounts.value.claude.find(
+      (acc) => acc.id === key.claudeConsoleAccountId && acc.platform === 'claude-console'
+    )
+    if (!account) {
+      return `⚠️ Console账户不存在`
+    }
+    return `Console-${account.name}`
+  }
+  return ''
+}
+
+// 获取Gemini绑定信息
+const getGeminiBindingInfo = (key) => {
+  if (key.geminiAccountId) {
+    const info = getBoundAccountName(key.geminiAccountId)
+    if (key.geminiAccountId.startsWith('group:')) {
+      return info
+    }
+    // 检查账户是否存在
+    const account = accounts.value.gemini.find((acc) => acc.id === key.geminiAccountId)
+    if (!account) {
+      return `⚠️ ${info} (账户不存在)`
+    }
+    if (account.accountType === 'dedicated') {
+      return `🔒 专属-${info}`
+    }
+    return info
+  }
+  return ''
+}
+
+// 获取OpenAI绑定信息
+const getOpenAIBindingInfo = (key) => {
+  if (key.openaiAccountId) {
+    const info = getBoundAccountName(key.openaiAccountId)
+    if (key.openaiAccountId.startsWith('group:')) {
+      return info
+    }
+    // 检查账户是否存在
+    const account = accounts.value.openai.find((acc) => acc.id === key.openaiAccountId)
+    if (!account) {
+      return `⚠️ ${info} (账户不存在)`
+    }
+    if (account.accountType === 'dedicated') {
+      return `🔒 专属-${info}`
+    }
+    return info
+  }
+  return ''
 }
 
 // 检查API Key是否过期

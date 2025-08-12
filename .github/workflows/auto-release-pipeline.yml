@@ -271,6 +271,106 @@ jobs:
         prerelease: false
         generate_release_notes: true
 
+    # 自动清理旧的tags和releases（保持最近50个）
+    - name: Cleanup old tags and releases
+      if: steps.check.outputs.needs_bump == 'true'
+      continue-on-error: true
+      env:
+        TAGS_TO_KEEP: 50
+      run: |
+        echo "🧹 自动清理旧版本，保持最近 $TAGS_TO_KEEP 个tag..."
+        
+        # 获取所有版本tag并按版本号排序（从旧到新）
+        echo "正在获取所有tags..."
+        ALL_TAGS=$(git ls-remote --tags origin | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | awk '{print $2}' | sed 's|refs/tags/||' | sort -V)
+        
+        # 检查是否获取到tags
+        if [ -z "$ALL_TAGS" ]; then
+          echo "⚠️ 未找到任何版本tag"
+          exit 0
+        fi
+        
+        TOTAL_COUNT=$(echo "$ALL_TAGS" | wc -l)
+        
+        echo "📊 当前tag统计："
+        echo "- 总数: $TOTAL_COUNT"
+        echo "- 配置保留: $TAGS_TO_KEEP"
+        
+        if [ "$TOTAL_COUNT" -gt "$TAGS_TO_KEEP" ]; then
+          DELETE_COUNT=$((TOTAL_COUNT - TAGS_TO_KEEP))
+          echo "- 将要删除: $DELETE_COUNT 个最旧的tag"
+          
+          # 获取要删除的tags（最老的）
+          TAGS_TO_DELETE=$(echo "$ALL_TAGS" | head -n "$DELETE_COUNT")
+          
+          # 显示将要删除的版本范围
+          OLDEST_TO_DELETE=$(echo "$TAGS_TO_DELETE" | head -1)
+          NEWEST_TO_DELETE=$(echo "$TAGS_TO_DELETE" | tail -1)
+          echo ""
+          echo "🗑️ 将要删除的版本范围："
+          echo "- 从: $OLDEST_TO_DELETE"
+          echo "- 到: $NEWEST_TO_DELETE"
+          
+          echo ""
+          echo "开始执行删除..."
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+          
+          for tag in $TAGS_TO_DELETE; do
+            echo -n "  删除 $tag ... "
+            
+            # 先检查release是否存在
+            if gh release view "$tag" >/dev/null 2>&1; then
+              # Release存在，删除release会同时删除tag
+              if gh release delete "$tag" --yes --cleanup-tag 2>/dev/null; then
+                echo "✅ (release+tag)"
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                echo "❌ (release删除失败)"
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+              fi
+            else
+              # Release不存在，只删除tag
+              if git push origin --delete "$tag" 2>/dev/null; then
+                echo "✅ (仅tag)"
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                echo "⏭️ (已不存在)"
+                FAIL_COUNT=$((FAIL_COUNT + 1))
+              fi
+            fi
+          done
+          
+          echo ""
+          echo "📊 清理结果："
+          echo "- 成功删除: $SUCCESS_COUNT"
+          echo "- 失败/跳过: $FAIL_COUNT"
+          
+          # 重新获取并显示保留的版本范围
+          echo ""
+          echo "正在验证清理结果..."
+          REMAINING_TAGS=$(git ls-remote --tags origin | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | awk '{print $2}' | sed 's|refs/tags/||' | sort -V)
+          REMAINING_COUNT=$(echo "$REMAINING_TAGS" | wc -l)
+          OLDEST=$(echo "$REMAINING_TAGS" | head -1)
+          NEWEST=$(echo "$REMAINING_TAGS" | tail -1)
+          
+          echo "✅ 清理完成！"
+          echo ""
+          echo "📌 当前保留的版本："
+          echo "- 最旧版本: $OLDEST"
+          echo "- 最新版本: $NEWEST"
+          echo "- 版本总数: $REMAINING_COUNT"
+          
+          # 验证是否达到预期
+          if [ "$REMAINING_COUNT" -le "$TAGS_TO_KEEP" ]; then
+            echo "- 状态: ✅ 符合预期（≤$TAGS_TO_KEEP）"
+          else
+            echo "- 状态: ⚠️ 超出预期（某些tag可能删除失败）"
+          fi
+        else
+          echo "✅ 当前tag数量（$TOTAL_COUNT）未超过限制（$TAGS_TO_KEEP），无需清理"
+        fi
+
     # Docker构建步骤
     - name: Set up QEMU
       if: steps.check.outputs.needs_bump == 'true'

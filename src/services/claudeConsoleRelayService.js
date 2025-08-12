@@ -229,6 +229,29 @@ class ClaudeConsoleRelayService {
       )
       logger.debug(`🌐 Account API URL: ${account.apiUrl}`)
 
+      // 处理模型映射
+      let mappedModel = requestBody.model
+      if (
+        account.supportedModels &&
+        typeof account.supportedModels === 'object' &&
+        !Array.isArray(account.supportedModels)
+      ) {
+        const newModel = claudeConsoleAccountService.getMappedModel(
+          account.supportedModels,
+          requestBody.model
+        )
+        if (newModel !== requestBody.model) {
+          logger.info(`🔄 [Stream] Mapping model from ${requestBody.model} to ${newModel}`)
+          mappedModel = newModel
+        }
+      }
+
+      // 创建修改后的请求体
+      const modifiedRequestBody = {
+        ...requestBody,
+        model: mappedModel
+      }
+
       // 模型兼容性检查已经在调度器中完成，这里不需要再检查
 
       // 创建代理agent
@@ -236,7 +259,7 @@ class ClaudeConsoleRelayService {
 
       // 发送流式请求
       await this._makeClaudeConsoleStreamRequest(
-        requestBody,
+        modifiedRequestBody,
         account,
         proxyAgent,
         clientHeaders,

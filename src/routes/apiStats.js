@@ -279,6 +279,9 @@ router.post('/api/user-stats', async (req, res) => {
     let currentWindowRequests = 0
     let currentWindowTokens = 0
     let currentDailyCost = 0
+    let windowStartTime = null
+    let windowEndTime = null
+    let windowRemainingSeconds = null
 
     try {
       // 获取当前时间窗口的请求次数和Token使用量
@@ -286,9 +289,32 @@ router.post('/api/user-stats', async (req, res) => {
         const client = redis.getClientSafe()
         const requestCountKey = `rate_limit:requests:${keyId}`
         const tokenCountKey = `rate_limit:tokens:${keyId}`
+        const windowStartKey = `rate_limit:window_start:${keyId}`
 
         currentWindowRequests = parseInt((await client.get(requestCountKey)) || '0')
         currentWindowTokens = parseInt((await client.get(tokenCountKey)) || '0')
+
+        // 获取窗口开始时间和计算剩余时间
+        const windowStart = await client.get(windowStartKey)
+        if (windowStart) {
+          const now = Date.now()
+          windowStartTime = parseInt(windowStart)
+          const windowDuration = fullKeyData.rateLimitWindow * 60 * 1000 // 转换为毫秒
+          windowEndTime = windowStartTime + windowDuration
+
+          // 如果窗口还有效
+          if (now < windowEndTime) {
+            windowRemainingSeconds = Math.max(0, Math.floor((windowEndTime - now) / 1000))
+          } else {
+            // 窗口已过期，下次请求会重置
+            windowStartTime = null
+            windowEndTime = null
+            windowRemainingSeconds = 0
+            // 重置计数为0，因为窗口已过期
+            currentWindowRequests = 0
+            currentWindowTokens = 0
+          }
+        }
       }
 
       // 获取当日费用
@@ -334,7 +360,11 @@ router.post('/api/user-stats', async (req, res) => {
         // 当前使用量
         currentWindowRequests,
         currentWindowTokens,
-        currentDailyCost
+        currentDailyCost,
+        // 时间窗口信息
+        windowStartTime,
+        windowEndTime,
+        windowRemainingSeconds
       },
 
       // 绑定的账户信息（只显示ID，不显示敏感信息）

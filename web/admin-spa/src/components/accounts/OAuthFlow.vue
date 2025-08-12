@@ -251,6 +251,131 @@
       </div>
     </div>
 
+    <!-- OpenAI OAuth流程 -->
+    <div v-else-if="platform === 'openai'">
+      <div class="rounded-lg border border-orange-200 bg-orange-50 p-6">
+        <div class="flex items-start gap-4">
+          <div
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-orange-500"
+          >
+            <i class="fas fa-brain text-white" />
+          </div>
+          <div class="flex-1">
+            <h4 class="mb-3 font-semibold text-orange-900">OpenAI 账户授权</h4>
+            <p class="mb-4 text-sm text-orange-800">请按照以下步骤完成 OpenAI 账户的授权：</p>
+
+            <div class="space-y-4">
+              <!-- 步骤1: 生成授权链接 -->
+              <div class="rounded-lg border border-orange-300 bg-white/80 p-4">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white"
+                  >
+                    1
+                  </div>
+                  <div class="flex-1">
+                    <p class="mb-2 font-medium text-orange-900">点击下方按钮生成授权链接</p>
+                    <button
+                      v-if="!authUrl"
+                      class="btn btn-primary px-4 py-2 text-sm"
+                      :disabled="loading"
+                      @click="generateAuthUrl"
+                    >
+                      <i v-if="!loading" class="fas fa-link mr-2" />
+                      <div v-else class="loading-spinner mr-2" />
+                      {{ loading ? '生成中...' : '生成授权链接' }}
+                    </button>
+                    <div v-else class="space-y-3">
+                      <div class="flex items-center gap-2">
+                        <input
+                          class="form-input flex-1 bg-gray-50 font-mono text-xs"
+                          readonly
+                          type="text"
+                          :value="authUrl"
+                        />
+                        <button
+                          class="rounded-lg bg-gray-100 px-3 py-2 transition-colors hover:bg-gray-200"
+                          title="复制链接"
+                          @click="copyAuthUrl"
+                        >
+                          <i :class="copied ? 'fas fa-check text-green-500' : 'fas fa-copy'" />
+                        </button>
+                      </div>
+                      <button
+                        class="text-xs text-orange-600 hover:text-orange-700"
+                        @click="regenerateAuthUrl"
+                      >
+                        <i class="fas fa-sync-alt mr-1" />重新生成
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 步骤2: 访问链接并授权 -->
+              <div class="rounded-lg border border-orange-300 bg-white/80 p-4">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white"
+                  >
+                    2
+                  </div>
+                  <div class="flex-1">
+                    <p class="mb-2 font-medium text-orange-900">在浏览器中打开链接并完成授权</p>
+                    <p class="mb-2 text-sm text-orange-700">
+                      请在新标签页中打开授权链接，登录您的 OpenAI 账户并授权。
+                    </p>
+                    <div class="rounded border border-yellow-300 bg-yellow-50 p-3">
+                      <p class="text-xs text-yellow-800">
+                        <i class="fas fa-exclamation-triangle mr-1" />
+                        <strong>注意：</strong
+                        >如果您设置了代理，请确保浏览器也使用相同的代理访问授权页面。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 步骤3: 输入授权码 -->
+              <div class="rounded-lg border border-orange-300 bg-white/80 p-4">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-600 text-xs font-bold text-white"
+                  >
+                    3
+                  </div>
+                  <div class="flex-1">
+                    <p class="mb-2 font-medium text-orange-900">输入 Authorization Code</p>
+                    <p class="mb-3 text-sm text-orange-700">
+                      授权完成后，页面会显示一个
+                      <strong>Authorization Code</strong>，请将其复制并粘贴到下方输入框：
+                    </p>
+                    <div class="space-y-3">
+                      <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">
+                          <i class="fas fa-key mr-2 text-orange-500" />Authorization Code
+                        </label>
+                        <textarea
+                          v-model="authCode"
+                          class="form-input w-full resize-none font-mono text-sm"
+                          placeholder="粘贴从OpenAI页面获取的Authorization Code..."
+                          rows="3"
+                        />
+                      </div>
+                      <p class="mt-2 text-xs text-gray-500">
+                        <i class="fas fa-info-circle mr-1" />
+                        请粘贴从OpenAI页面复制的Authorization Code
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="flex gap-3 pt-4">
       <button
         class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200"
@@ -339,8 +464,8 @@ watch(authCode, (newValue) => {
         console.error('Failed to parse URL:', error)
         showToast('链接格式错误，请检查是否为完整的 URL', 'error')
       }
-    } else if (props.platform === 'gemini') {
-      // Gemini 平台可能使用不同的回调URL
+    } else if (props.platform === 'gemini' || props.platform === 'openai') {
+      // Gemini 和 OpenAI 平台可能使用不同的回调URL
       // 尝试从任何URL中提取code参数
       try {
         const url = new URL(trimmedValue)
@@ -383,6 +508,10 @@ const generateAuthUrl = async () => {
       sessionId.value = result.sessionId
     } else if (props.platform === 'gemini') {
       const result = await accountsStore.generateGeminiAuthUrl(proxyConfig)
+      authUrl.value = result.authUrl
+      sessionId.value = result.sessionId
+    } else if (props.platform === 'openai') {
+      const result = await accountsStore.generateOpenAIAuthUrl(proxyConfig)
       authUrl.value = result.authUrl
       sessionId.value = result.sessionId
     }
@@ -445,6 +574,12 @@ const exchangeCode = async () => {
         code: authCode.value.trim(),
         sessionId: sessionId.value
       }
+    } else if (props.platform === 'openai') {
+      // OpenAI使用code和sessionId
+      data = {
+        code: authCode.value.trim(),
+        sessionId: sessionId.value
+      }
     }
 
     // 添加代理配置（如果启用）
@@ -463,6 +598,8 @@ const exchangeCode = async () => {
       tokenInfo = await accountsStore.exchangeClaudeCode(data)
     } else if (props.platform === 'gemini') {
       tokenInfo = await accountsStore.exchangeGeminiCode(data)
+    } else if (props.platform === 'openai') {
+      tokenInfo = await accountsStore.exchangeOpenAICode(data)
     }
 
     emit('success', tokenInfo)

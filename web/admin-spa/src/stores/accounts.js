@@ -8,6 +8,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   const claudeConsoleAccounts = ref([])
   const bedrockAccounts = ref([])
   const geminiAccounts = ref([])
+  const openaiAccounts = ref([])
   const loading = ref(false)
   const error = ref(null)
   const sortBy = ref('')
@@ -91,6 +92,25 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 获取OpenAI账户列表
+  const fetchOpenAIAccounts = async () => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.get('/admin/openai-accounts')
+      if (response.success) {
+        openaiAccounts.value = response.data || []
+      } else {
+        throw new Error(response.message || '获取OpenAI账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 获取所有账户
   const fetchAllAccounts = async () => {
     loading.value = true
@@ -100,7 +120,8 @@ export const useAccountsStore = defineStore('accounts', () => {
         fetchClaudeAccounts(),
         fetchClaudeConsoleAccounts(),
         fetchBedrockAccounts(),
-        fetchGeminiAccounts()
+        fetchGeminiAccounts(),
+        fetchOpenAIAccounts()
       ])
     } catch (err) {
       error.value = err.message
@@ -190,6 +211,26 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 创建OpenAI账户
+  const createOpenAIAccount = async (data) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.post('/admin/openai-accounts', data)
+      if (response.success) {
+        await fetchOpenAIAccounts()
+        return response.data
+      } else {
+        throw new Error(response.message || '创建OpenAI账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 更新Claude账户
   const updateClaudeAccount = async (id, data) => {
     loading.value = true
@@ -270,6 +311,26 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 更新OpenAI账户
+  const updateOpenAIAccount = async (id, data) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.put(`/admin/openai-accounts/${id}`, data)
+      if (response.success) {
+        await fetchOpenAIAccounts()
+        return response
+      } else {
+        throw new Error(response.message || '更新OpenAI账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 切换账户状态
   const toggleAccount = async (platform, id) => {
     loading.value = true
@@ -282,8 +343,10 @@ export const useAccountsStore = defineStore('accounts', () => {
         endpoint = `/admin/claude-console-accounts/${id}/toggle`
       } else if (platform === 'bedrock') {
         endpoint = `/admin/bedrock-accounts/${id}/toggle`
-      } else {
+      } else if (platform === 'gemini') {
         endpoint = `/admin/gemini-accounts/${id}/toggle`
+      } else {
+        endpoint = `/admin/openai-accounts/${id}/toggle`
       }
 
       const response = await apiClient.put(endpoint)
@@ -294,8 +357,10 @@ export const useAccountsStore = defineStore('accounts', () => {
           await fetchClaudeConsoleAccounts()
         } else if (platform === 'bedrock') {
           await fetchBedrockAccounts()
-        } else {
+        } else if (platform === 'gemini') {
           await fetchGeminiAccounts()
+        } else {
+          await fetchOpenAIAccounts()
         }
         return response
       } else {
@@ -321,8 +386,10 @@ export const useAccountsStore = defineStore('accounts', () => {
         endpoint = `/admin/claude-console-accounts/${id}`
       } else if (platform === 'bedrock') {
         endpoint = `/admin/bedrock-accounts/${id}`
-      } else {
+      } else if (platform === 'gemini') {
         endpoint = `/admin/gemini-accounts/${id}`
+      } else {
+        endpoint = `/admin/openai-accounts/${id}`
       }
 
       const response = await apiClient.delete(endpoint)
@@ -333,8 +400,10 @@ export const useAccountsStore = defineStore('accounts', () => {
           await fetchClaudeConsoleAccounts()
         } else if (platform === 'bedrock') {
           await fetchBedrockAccounts()
-        } else {
+        } else if (platform === 'gemini') {
           await fetchGeminiAccounts()
+        } else {
+          await fetchOpenAIAccounts()
         }
         return response
       } else {
@@ -464,6 +533,36 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 生成OpenAI OAuth URL
+  const generateOpenAIAuthUrl = async (proxyConfig) => {
+    try {
+      const response = await apiClient.post('/admin/openai-accounts/generate-auth-url', proxyConfig)
+      if (response.success) {
+        return response.data // 返回整个对象，包含authUrl和sessionId
+      } else {
+        throw new Error(response.message || '生成授权URL失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    }
+  }
+
+  // 交换OpenAI OAuth Code
+  const exchangeOpenAICode = async (data) => {
+    try {
+      const response = await apiClient.post('/admin/openai-accounts/exchange-code', data)
+      if (response.success) {
+        return response.data
+      } else {
+        throw new Error(response.message || '交换授权码失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    }
+  }
+
   // 排序账户
   const sortAccounts = (field) => {
     if (sortBy.value === field) {
@@ -480,6 +579,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     claudeConsoleAccounts.value = []
     bedrockAccounts.value = []
     geminiAccounts.value = []
+    openaiAccounts.value = []
     loading.value = false
     error.value = null
     sortBy.value = ''
@@ -492,6 +592,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     claudeConsoleAccounts,
     bedrockAccounts,
     geminiAccounts,
+    openaiAccounts,
     loading,
     error,
     sortBy,
@@ -502,15 +603,18 @@ export const useAccountsStore = defineStore('accounts', () => {
     fetchClaudeConsoleAccounts,
     fetchBedrockAccounts,
     fetchGeminiAccounts,
+    fetchOpenAIAccounts,
     fetchAllAccounts,
     createClaudeAccount,
     createClaudeConsoleAccount,
     createBedrockAccount,
     createGeminiAccount,
+    createOpenAIAccount,
     updateClaudeAccount,
     updateClaudeConsoleAccount,
     updateBedrockAccount,
     updateGeminiAccount,
+    updateOpenAIAccount,
     toggleAccount,
     deleteAccount,
     refreshClaudeToken,
@@ -520,6 +624,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     exchangeClaudeSetupTokenCode,
     generateGeminiAuthUrl,
     exchangeGeminiCode,
+    generateOpenAIAuthUrl,
+    exchangeOpenAICode,
     sortAccounts,
     reset
   }

@@ -19,6 +19,7 @@ const apiStatsRoutes = require('./routes/apiStats')
 const geminiRoutes = require('./routes/geminiRoutes')
 const openaiGeminiRoutes = require('./routes/openaiGeminiRoutes')
 const openaiClaudeRoutes = require('./routes/openaiClaudeRoutes')
+const openaiRoutes = require('./routes/openaiRoutes')
 
 // Import middleware
 const {
@@ -234,6 +235,7 @@ class Application {
       this.app.use('/gemini', geminiRoutes)
       this.app.use('/openai/gemini', openaiGeminiRoutes)
       this.app.use('/openai/claude', openaiClaudeRoutes)
+      this.app.use('/openai', openaiRoutes)
 
       // 🏠 根路径重定向到新版管理界面
       this.app.get('/', (req, res) => {
@@ -257,9 +259,6 @@ class Application {
           let version = process.env.APP_VERSION || process.env.VERSION
           if (!version) {
             try {
-              // 尝试从VERSION文件读取
-              const fs = require('fs')
-              const path = require('path')
               const versionFile = path.join(__dirname, '..', 'VERSION')
               if (fs.existsSync(versionFile)) {
                 version = fs.readFileSync(versionFile, 'utf8').trim()

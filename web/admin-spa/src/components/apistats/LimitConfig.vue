@@ -44,47 +44,19 @@
             (statsData.limits.rateLimitRequests > 0 || statsData.limits.tokenLimit > 0)
           "
         >
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-600 md:text-base">
-              时间窗口限制 ({{ statsData.limits.rateLimitWindow }}分钟)
-            </span>
-          </div>
-
-          <!-- 请求次数限制 -->
-          <div v-if="statsData.limits.rateLimitRequests > 0" class="mb-3 space-y-1.5">
-            <div class="flex items-center justify-between text-xs md:text-sm">
-              <span class="text-gray-500">请求次数</span>
-              <span class="text-gray-700">
-                {{ formatNumber(statsData.limits.currentWindowRequests) }} /
-                {{ formatNumber(statsData.limits.rateLimitRequests) }}
-              </span>
-            </div>
-            <div class="h-1.5 w-full rounded-full bg-gray-200">
-              <div
-                class="h-1.5 rounded-full transition-all duration-300"
-                :class="getWindowRequestProgressColor()"
-                :style="{ width: getWindowRequestProgress() + '%' }"
-              />
-            </div>
-          </div>
-
-          <!-- Token使用量限制 -->
-          <div v-if="statsData.limits.tokenLimit > 0" class="space-y-1.5">
-            <div class="flex items-center justify-between text-xs md:text-sm">
-              <span class="text-gray-500">Token 使用量</span>
-              <span class="text-gray-700">
-                {{ formatNumber(statsData.limits.currentWindowTokens) }} /
-                {{ formatNumber(statsData.limits.tokenLimit) }}
-              </span>
-            </div>
-            <div class="h-1.5 w-full rounded-full bg-gray-200">
-              <div
-                class="h-1.5 rounded-full transition-all duration-300"
-                :class="getWindowTokenProgressColor()"
-                :style="{ width: getWindowTokenProgress() + '%' }"
-              />
-            </div>
-          </div>
+          <WindowCountdown
+            :current-requests="statsData.limits.currentWindowRequests"
+            :current-tokens="statsData.limits.currentWindowTokens"
+            label="时间窗口限制"
+            :rate-limit-window="statsData.limits.rateLimitWindow"
+            :request-limit="statsData.limits.rateLimitRequests"
+            :show-progress="true"
+            :show-tooltip="true"
+            :token-limit="statsData.limits.tokenLimit"
+            :window-end-time="statsData.limits.windowEndTime"
+            :window-remaining-seconds="statsData.limits.windowRemainingSeconds"
+            :window-start-time="statsData.limits.windowStartTime"
+          />
 
           <div class="mt-2 text-xs text-gray-500">
             <i class="fas fa-info-circle mr-1" />
@@ -226,27 +198,10 @@
 <script setup>
 import { storeToRefs } from 'pinia'
 import { useApiStatsStore } from '@/stores/apistats'
+import WindowCountdown from '@/components/apikeys/WindowCountdown.vue'
 
 const apiStatsStore = useApiStatsStore()
 const { statsData } = storeToRefs(apiStatsStore)
-
-// 格式化数字
-const formatNumber = (num) => {
-  if (typeof num !== 'number') {
-    num = parseInt(num) || 0
-  }
-
-  if (num === 0) return '0'
-
-  // 大数字使用简化格式
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  } else {
-    return num.toLocaleString()
-  }
-}
 
 // 获取每日费用进度
 const getDailyCostProgress = () => {
@@ -263,39 +218,6 @@ const getDailyCostProgressColor = () => {
   if (progress >= 100) return 'bg-red-500'
   if (progress >= 80) return 'bg-yellow-500'
   return 'bg-green-500'
-}
-
-// 获取窗口请求进度
-const getWindowRequestProgress = () => {
-  if (!statsData.value.limits.rateLimitRequests || statsData.value.limits.rateLimitRequests === 0)
-    return 0
-  const percentage =
-    (statsData.value.limits.currentWindowRequests / statsData.value.limits.rateLimitRequests) * 100
-  return Math.min(percentage, 100)
-}
-
-// 获取窗口请求进度条颜色
-const getWindowRequestProgressColor = () => {
-  const progress = getWindowRequestProgress()
-  if (progress >= 100) return 'bg-red-500'
-  if (progress >= 80) return 'bg-yellow-500'
-  return 'bg-blue-500'
-}
-
-// 获取窗口Token进度
-const getWindowTokenProgress = () => {
-  if (!statsData.value.limits.tokenLimit || statsData.value.limits.tokenLimit === 0) return 0
-  const percentage =
-    (statsData.value.limits.currentWindowTokens / statsData.value.limits.tokenLimit) * 100
-  return Math.min(percentage, 100)
-}
-
-// 获取窗口Token进度条颜色
-const getWindowTokenProgressColor = () => {
-  const progress = getWindowTokenProgress()
-  if (progress >= 100) return 'bg-red-500'
-  if (progress >= 80) return 'bg-yellow-500'
-  return 'bg-purple-500'
 }
 </script>
 

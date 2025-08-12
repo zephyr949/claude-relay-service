@@ -307,6 +307,14 @@ class ClaudeConsoleAccountService {
         throw new Error('Account not found')
       }
 
+      // 如果限流时间设置为 0，表示不启用限流机制，直接返回
+      if (account.rateLimitDuration === 0) {
+        logger.info(
+          `ℹ️ Claude Console account ${account.name} (${accountId}) has rate limiting disabled, skipping rate limit`
+        )
+        return { success: true, skipped: true }
+      }
+
       const updates = {
         rateLimitedAt: new Date().toISOString(),
         rateLimitStatus: 'limited'
@@ -348,6 +356,11 @@ class ClaudeConsoleAccountService {
     try {
       const account = await this.getAccount(accountId)
       if (!account) {
+        return false
+      }
+
+      // 如果限流时间设置为 0，表示不启用限流机制
+      if (account.rateLimitDuration === 0) {
         return false
       }
 
