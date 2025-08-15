@@ -18,7 +18,8 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const config = require('../../config/config')
-const { v4: uuidv4 } = require('uuid')
+const { SocksProxyAgent } = require('socks-proxy-agent')
+const { HttpsProxyAgent } = require('https-proxy-agent')
 
 const router = express.Router()
 
@@ -1375,6 +1376,46 @@ router.delete('/claude-accounts/:accountId', authenticateAdmin, async (req, res)
   }
 })
 
+// 更新单个Claude账户的Profile信息
+router.post('/claude-accounts/:accountId/update-profile', authenticateAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.params
+
+    const profileInfo = await claudeAccountService.fetchAndUpdateAccountProfile(accountId)
+
+    logger.success(`✅ Updated profile for Claude account: ${accountId}`)
+    return res.json({
+      success: true,
+      message: 'Account profile updated successfully',
+      data: profileInfo
+    })
+  } catch (error) {
+    logger.error('❌ Failed to update account profile:', error)
+    return res
+      .status(500)
+      .json({ error: 'Failed to update account profile', message: error.message })
+  }
+})
+
+// 批量更新所有Claude账户的Profile信息
+router.post('/claude-accounts/update-all-profiles', authenticateAdmin, async (req, res) => {
+  try {
+    const result = await claudeAccountService.updateAllAccountProfiles()
+
+    logger.success('✅ Batch profile update completed')
+    return res.json({
+      success: true,
+      message: 'Batch profile update completed',
+      data: result
+    })
+  } catch (error) {
+    logger.error('❌ Failed to update all account profiles:', error)
+    return res
+      .status(500)
+      .json({ error: 'Failed to update all account profiles', message: error.message })
+  }
+})
+
 // 刷新Claude账户token
 router.post('/claude-accounts/:accountId/refresh', authenticateAdmin, async (req, res) => {
   try {
@@ -1548,7 +1589,8 @@ router.post('/claude-console-accounts', authenticateAdmin, async (req, res) => {
       priority: priority || 50,
       supportedModels: supportedModels || [],
       userAgent,
-      rateLimitDuration: rateLimitDuration || 60,
+      rateLimitDuration:
+        rateLimitDuration !== undefined && rateLimitDuration !== null ? rateLimitDuration : 60,
       proxy,
       accountType: accountType || 'shared'
     })
@@ -4501,12 +4543,16 @@ router.post('/openai-accounts/exchange-code', authenticateAdmin, async (req, res
 
     if (sessionData.proxy) {
       const { type, host, port, username, password } = sessionData.proxy
-      if (type === 'http' || type === 'https') {
-        axiosConfig.proxy = {
-          host,
-          port: parseInt(port),
-          auth: username && password ? { username, password } : undefined
-        }
+      if (type === 'socks5') {
+        // SOCKS5 代理
+        const auth = username && password ? `${username}:${password}@` : ''
+        const socksUrl = `socks5://${auth}${host}:${port}`
+        axiosConfig.httpsAgent = new SocksProxyAgent(socksUrl)
+      } else if (type === 'http' || type === 'https') {
+        // HTTP/HTTPS 代理
+        const auth = username && password ? `${username}:${password}@` : ''
+        const proxyUrl = `${type}://${auth}${host}:${port}`
+        axiosConfig.httpsAgent = new HttpsProxyAgent(proxyUrl)
       }
     }
 
@@ -4658,7 +4704,6 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       proxy,
       accountType,
       groupId,
-      dedicatedApiKeys,
       rateLimitDuration,
       priority
     } = req.body
@@ -4675,18 +4720,11 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       description: description || '',
       accountType: accountType || 'shared',
       priority: priority || 50,
-      rateLimitDuration: rateLimitDuration || 60,
+      rateLimitDuration:
+        rateLimitDuration !== undefined && rateLimitDuration !== null ? rateLimitDuration : 60,
       openaiOauth: openaiOauth || {},
       accountInfo: accountInfo || {},
-      proxy: proxy?.enabled
-        ? {
-            type: proxy.type,
-            host: proxy.host,
-            port: proxy.port,
-            username: proxy.username || null,
-            password: proxy.password || null
-          }
-        : null,
+      proxy: proxy || null,
       isActive: true,
       schedulable: true
     }

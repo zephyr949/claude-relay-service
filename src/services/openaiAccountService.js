@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
 const config = require('../../config/config')
 const logger = require('../utils/logger')
-const { maskToken } = require('../utils/tokenMask')
+// const { maskToken } = require('../utils/tokenMask')
 const {
   logRefreshStart,
   logRefreshSuccess,
@@ -11,7 +11,7 @@ const {
   logTokenUsage,
   logRefreshSkipped
 } = require('../utils/tokenRefreshLogger')
-const tokenRefreshService = require('./tokenRefreshService')
+// const tokenRefreshService = require('./tokenRefreshService')
 
 // 加密相关常量
 const ALGORITHM = 'aes-256-cbc'
@@ -65,7 +65,7 @@ function decrypt(text) {
 }
 
 // 刷新访问令牌
-async function refreshAccessToken(refreshToken) {
+async function refreshAccessToken(_refreshToken) {
   try {
     // OpenAI OAuth token 刷新实现
     // TODO: 实现具体的 OpenAI OAuth token 刷新逻辑
@@ -146,7 +146,10 @@ async function createAccount(accountData) {
     accountType: accountData.accountType || 'shared',
     groupId: accountData.groupId || null,
     priority: accountData.priority || 50,
-    rateLimitDuration: accountData.rateLimitDuration || 60,
+    rateLimitDuration:
+      accountData.rateLimitDuration !== undefined && accountData.rateLimitDuration !== null
+        ? accountData.rateLimitDuration
+        : 60,
     // OAuth相关字段（加密存储）
     idToken: encrypt(oauthData.idToken || ''),
     accessToken: encrypt(oauthData.accessToken || ''),
@@ -549,21 +552,28 @@ async function getAccountRateLimitInfo(accountId) {
   }
 }
 
-// 更新账户使用统计
-async function updateAccountUsage(accountId, tokens) {
+// 更新账户使用统计（tokens参数可选，默认为0，仅更新最后使用时间）
+async function updateAccountUsage(accountId, tokens = 0) {
   const account = await getAccount(accountId)
   if (!account) {
     return
   }
 
-  const totalUsage = parseInt(account.totalUsage || 0) + tokens
-  const lastUsedAt = new Date().toISOString()
+  const updates = {
+    lastUsedAt: new Date().toISOString()
+  }
 
-  await updateAccount(accountId, {
-    totalUsage: totalUsage.toString(),
-    lastUsedAt
-  })
+  // 如果有 tokens 参数且大于0，同时更新使用统计
+  if (tokens > 0) {
+    const totalUsage = parseInt(account.totalUsage || 0) + tokens
+    updates.totalUsage = totalUsage.toString()
+  }
+
+  await updateAccount(accountId, updates)
 }
+
+// 为了兼容性，保留recordUsage作为updateAccountUsage的别名
+const recordUsage = updateAccountUsage
 
 module.exports = {
   createAccount,
@@ -578,6 +588,7 @@ module.exports = {
   toggleSchedulable,
   getAccountRateLimitInfo,
   updateAccountUsage,
+  recordUsage, // 别名，指向updateAccountUsage
   encrypt,
   decrypt
 }

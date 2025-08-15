@@ -135,7 +135,8 @@ class UnifiedOpenAIScheduler {
       if (boundAccount && boundAccount.isActive === 'true' && boundAccount.status !== 'error') {
         const isRateLimited = await this.isAccountRateLimited(boundAccount.id)
         if (!isRateLimited) {
-          // 检查模型支持
+          // 检查模型支持（仅在明确设置了supportedModels且不为空时才检查）
+          // 如果没有设置supportedModels或为空数组，则支持所有模型
           if (
             requestedModel &&
             boundAccount.supportedModels &&
@@ -188,7 +189,8 @@ class UnifiedOpenAIScheduler {
           continue
         }
 
-        // 检查模型支持
+        // 检查模型支持（仅在明确设置了supportedModels且不为空时才检查）
+        // 如果没有设置supportedModels或为空数组，则支持所有模型
         if (requestedModel && account.supportedModels && account.supportedModels.length > 0) {
           const modelSupported = account.supportedModels.includes(requestedModel)
           if (!modelSupported) {
@@ -414,7 +416,8 @@ class UnifiedOpenAIScheduler {
             continue
           }
 
-          // 检查模型支持
+          // 检查模型支持（仅在明确设置了supportedModels且不为空时才检查）
+          // 如果没有设置supportedModels或为空数组，则支持所有模型
           if (requestedModel && account.supportedModels && account.supportedModels.length > 0) {
             const modelSupported = account.supportedModels.includes(requestedModel)
             if (!modelSupported) {

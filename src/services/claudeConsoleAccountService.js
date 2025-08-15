@@ -123,7 +123,9 @@ class ClaudeConsoleAccountService {
             priority: parseInt(accountData.priority) || 50,
             supportedModels: JSON.parse(accountData.supportedModels || '[]'),
             userAgent: accountData.userAgent,
-            rateLimitDuration: parseInt(accountData.rateLimitDuration) || 60,
+            rateLimitDuration: Number.isNaN(parseInt(accountData.rateLimitDuration))
+              ? 60
+              : parseInt(accountData.rateLimitDuration),
             isActive: accountData.isActive === 'true',
             proxy: accountData.proxy ? JSON.parse(accountData.proxy) : null,
             accountType: accountData.accountType || 'shared',
@@ -172,7 +174,10 @@ class ClaudeConsoleAccountService {
 
     accountData.supportedModels = parsedModels
     accountData.priority = parseInt(accountData.priority) || 50
-    accountData.rateLimitDuration = parseInt(accountData.rateLimitDuration) || 60
+    {
+      const _parsedDuration = parseInt(accountData.rateLimitDuration)
+      accountData.rateLimitDuration = Number.isNaN(_parsedDuration) ? 60 : _parsedDuration
+    }
     accountData.isActive = accountData.isActive === 'true'
     accountData.schedulable = accountData.schedulable !== 'false' // 默认为true
 
@@ -255,6 +260,26 @@ class ClaudeConsoleAccountService {
       }
 
       updatedData.updatedAt = new Date().toISOString()
+
+      // 检查是否手动禁用了账号，如果是则发送webhook通知
+      if (updates.isActive === false && existingAccount.isActive === true) {
+        try {
+          const webhookNotifier = require('../utils/webhookNotifier')
+          await webhookNotifier.sendAccountAnomalyNotification({
+            accountId,
+            accountName: updatedData.name || existingAccount.name || 'Unknown Account',
+            platform: 'claude-console',
+            status: 'disabled',
+            errorCode: 'CLAUDE_CONSOLE_MANUALLY_DISABLED',
+            reason: 'Account manually disabled by administrator'
+          })
+        } catch (webhookError) {
+          logger.error(
+            'Failed to send webhook notification for manual account disable:',
+            webhookError
+          )
+        }
+      }
 
       logger.debug(`[DEBUG] Final updatedData to save: ${JSON.stringify(updatedData, null, 2)}`)
       logger.debug(`[DEBUG] Updating Redis key: ${this.ACCOUNT_KEY_PREFIX}${accountId}`)
@@ -370,7 +395,10 @@ class ClaudeConsoleAccountService {
         const minutesSinceRateLimit = (now - rateLimitedAt) / (1000 * 60)
 
         // 使用账户配置的限流时间
-        const rateLimitDuration = account.rateLimitDuration || 60
+        const rateLimitDuration =
+          typeof account.rateLimitDuration === 'number' && !Number.isNaN(account.rateLimitDuration)
+            ? account.rateLimitDuration
+            : 60
 
         if (minutesSinceRateLimit >= rateLimitDuration) {
           await this.removeAccountRateLimit(accountId)
@@ -395,6 +423,9 @@ class ClaudeConsoleAccountService {
     try {
       const client = redis.getClientSafe()
 
+      // 获取账户信息用于webhook通知
+      const accountData = await client.hgetall(`${this.ACCOUNT_KEY_PREFIX}${accountId}`)
+
       const updates = {
         status: 'blocked',
         errorMessage: reason,
@@ -404,6 +435,24 @@ class ClaudeConsoleAccountService {
       await client.hset(`${this.ACCOUNT_KEY_PREFIX}${accountId}`, updates)
 
       logger.warn(`🚫 Claude Console account blocked: ${accountId} - ${reason}`)
+
+      // 发送Webhook通知
+      if (accountData && Object.keys(accountData).length > 0) {
+        try {
+          const webhookNotifier = require('../utils/webhookNotifier')
+          await webhookNotifier.sendAccountAnomalyNotification({
+            accountId,
+            accountName: accountData.name || 'Unknown Account',
+            platform: 'claude-console',
+            status: 'blocked',
+            errorCode: 'CLAUDE_CONSOLE_BLOCKED',
+            reason
+          })
+        } catch (webhookError) {
+          logger.error('Failed to send webhook notification:', webhookError)
+        }
+      }
+
       return { success: true }
     } catch (error) {
       logger.error(`❌ Failed to block Claude Console account: ${accountId}`, error)
@@ -510,7 +559,8 @@ class ClaudeConsoleAccountService {
       const rateLimitedAt = new Date(accountData.rateLimitedAt)
       const now = new Date()
       const minutesSinceRateLimit = Math.floor((now - rateLimitedAt) / (1000 * 60))
-      const rateLimitDuration = parseInt(accountData.rateLimitDuration) || 60
+      const __parsedDuration = parseInt(accountData.rateLimitDuration)
+      const rateLimitDuration = Number.isNaN(__parsedDuration) ? 60 : __parsedDuration
       const minutesRemaining = Math.max(0, rateLimitDuration - minutesSinceRateLimit)
 
       return {
